@@ -369,14 +369,11 @@ void performOTAUpdate() {
   }
 
   int len = http.getSize();
-  if (len <= 0) {
-    displayManager.showOtaProgress("OTA Update", "", "Unknown size");
-    delay(3000);
-    http.end();
-    return;
-  }
+  Serial.printf("OTA: download size=%d\n", len);
+  if (len <= 0) len = UPDATE_SIZE_UNKNOWN;
 
   if (!Update.begin(len)) {
+    Serial.printf("OTA: begin failed: %s\n", Update.errorString());
     displayManager.showOtaProgress("OTA Update", "", "Update begin failed");
     delay(3000);
     http.end();
