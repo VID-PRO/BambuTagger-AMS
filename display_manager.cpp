@@ -15,7 +15,8 @@ void DisplayManager::begin(const char* devName) {
 }
 
 void DisplayManager::update(const SpoolInfo slots[NUM_SLOTS], bool wifiConnected,
-                            bool mqttConnected) {
+                            bool mqttConnected, BambuPrinter* printer,
+                            uint8_t amsUnit) {
   if (!display) return;
   unsigned long now = millis();
   if (now - lastUpdate < 500) return;
@@ -23,8 +24,12 @@ void DisplayManager::update(const SpoolInfo slots[NUM_SLOTS], bool wifiConnected
 
   display->clearDisplay();
   drawStatusBar(wifiConnected);
-  drawSlotGrid(slots);
-  drawFooter(mqttConnected);
+  if (mqttConnected && printer && printer->isAmsDetected(amsUnit)) {
+    drawPrinterSlots(printer, amsUnit);
+  } else {
+    drawSlotGrid(slots);
+  }
+  drawFooter(mqttConnected, printer ? printer->isPrinterOnline() : false);
   display->display();
 }
 
@@ -34,8 +39,10 @@ void DisplayManager::drawStatusBar(bool wifiConnected) {
   display->setCursor(2, 0);
   display->print(deviceName);
 
-  display->setCursor(SCREEN_WIDTH - 48, 0);
-  display->print(wifiConnected ? "WiFi" : "NO WIFI");
+  const char* wifiText = wifiConnected ? "WiFi" : "NO WIFI";
+  int16_t x = SCREEN_WIDTH - (strlen(wifiText) * 6);
+  display->setCursor(x, 0);
+  display->print(wifiText);
 }
 
 void DisplayManager::drawSlotGrid(const SpoolInfo slots[NUM_SLOTS]) {
@@ -75,14 +82,44 @@ void DisplayManager::drawSlotGrid(const SpoolInfo slots[NUM_SLOTS]) {
   }
 }
 
-void DisplayManager::drawFooter(bool mqttConnected) {
+void DisplayManager::drawPrinterSlots(BambuPrinter* printer, uint8_t amsUnit) {
+  display->setTextColor(SSD1306_WHITE);
+
+  for (uint8_t i = 0; i < NUM_SLOTS; i++) {
+    uint8_t y = 10 + (i * 11);
+
+    display->setCursor(0, y);
+    display->printf("%d:", i + 1);
+
+    const char* ttype = printer->getAmsTrayType(amsUnit, i);
+    if (ttype && ttype[0]) {
+      char matShort[11];
+      strncpy(matShort, ttype, 10);
+      matShort[10] = '\0';
+      display->setCursor(12, y);
+      display->print(matShort);
+
+      const char* col = printer->getAmsTrayColor(amsUnit, i);
+      if (col && col[0]) {
+        display->setCursor(78, y);
+        display->print("#");
+        display->print(col);
+      }
+    } else {
+      display->setCursor(12, y);
+      display->print("empty");
+    }
+  }
+}
+
+void DisplayManager::drawFooter(bool mqttConnected, bool printerOnline) {
   display->drawFastHLine(0, 55, SCREEN_WIDTH, SSD1306_WHITE);
   display->setCursor(0, 57);
-  if (mqttConnected) {
-    display->print("MQTT:OK  Printer connected");
-  } else {
-    display->print("MQTT:offline");
-  }
+  display->print(mqttConnected ? "MQTT:OK" : "MQTT:--");
+  const char* ptrText = printerOnline ? "PTR:OK" : "PTR:--";
+  int16_t x = SCREEN_WIDTH - (strlen(ptrText) * 6);
+  display->setCursor(x, 57);
+  display->print(ptrText);
 }
 
 void DisplayManager::showMessage(const char* line1, const char* line2,

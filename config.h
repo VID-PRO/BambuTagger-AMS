@@ -27,7 +27,7 @@ const uint8_t RST_PINS[NUM_SLOTS] = {26, 25, 33, 32};
 #define OLED_ADDR 0x3C
 
 // --- RFID Settings ---
-#define RFID_POLL_INTERVAL_MS  200
+#define RFID_POLL_INTERVAL_MS  500
 #define RFID_DEBOUNCE_MS       500
 #define NTAG_PAGE_SIZE         4
 #define NTAG_USER_START_PAGE   4
@@ -76,7 +76,7 @@ inline SystemConfig getDefaultConfig() {
   strcpy(cfg.deviceName, "BambuTagger-AMS");
   cfg.amsUnit = 0;
   cfg.mqttEnabled = false;
-  cfg.mqttUseTLS = true;
+  cfg.mqttUseTLS = false;
   cfg.mqttUpdateIntervalMs = 5000;
   strcpy(cfg.mqttTopicPrefix, "device");
   return cfg;

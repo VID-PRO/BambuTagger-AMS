@@ -51,7 +51,7 @@ void WebInterface::handleRoot() {
 }
 
 void WebInterface::handleStatus() {
-  DynamicJsonDocument doc(4096);
+  DynamicJsonDocument doc(8192);
   doc["wifiConnected"] = wifiStatus;
   doc["ipAddress"] = ipAddress;
   doc["mqttConnected"] = mqttStatus;
@@ -68,11 +68,15 @@ void WebInterface::handleStatus() {
       unit["id"] = a;
       unit["label"] = (const char*)(a == 0 ? "A" : a == 1 ? "B" : a == 2 ? "C" : "D");
       unit["connected"] = bambuPrinter->isAmsDetected(a);
+      unit["fwVer"] = bambuPrinter->getAmsFwVer(a);
+      unit["productName"] = bambuPrinter->getAmsProductName(a);
+      unit["serial"] = bambuPrinter->getAmsSerial(a);
       JsonArray trays = unit.createNestedArray("trays");
       for (uint8_t t = 0; t < 4; t++) {
         JsonObject tray = trays.createNestedObject();
         tray["trayId"] = t;
         tray["material"] = bambuPrinter->getAmsTrayMaterial(a, t);
+        tray["trayType"] = bambuPrinter->getAmsTrayType(a, t);
         tray["color"] = bambuPrinter->getAmsTrayColor(a, t);
       }
     }
@@ -95,6 +99,22 @@ void WebInterface::handleStatus() {
     slot["batchNumber"] = info.batchNumber;
     slot["manufacturer"] = info.manufacturer;
     slot["tagReadSuccess"] = info.tagReadSuccess;
+  }
+
+  JsonArray printerSlots = doc.createNestedArray("printerSlots");
+  if (bambuPrinter) {
+    uint8_t amsUnit = config->amsUnit;
+    bool amsConnected = bambuPrinter->isAmsDetected(amsUnit);
+    for (uint8_t t = 0; t < 4; t++) {
+      JsonObject ps = printerSlots.createNestedObject();
+      ps["slot"] = t;
+      const char* ttype = bambuPrinter->getAmsTrayType(amsUnit, t);
+      ps["trayType"] = ttype;
+      ps["material"] = bambuPrinter->getAmsTrayMaterial(amsUnit, t);
+      ps["color"] = bambuPrinter->getAmsTrayColor(amsUnit, t);
+      ps["hasSpool"] = (ttype && ttype[0] != '\0');
+      ps["amsConnected"] = amsConnected;
+    }
   }
 
   sendJsonResponse(doc);
@@ -208,6 +228,11 @@ void WebInterface::handleConfigPost() {
   resp["ok"] = true;
   resp["saved"] = changed;
   sendJsonResponse(resp);
+
+  if (changed && rebootFn) {
+    delay(500);
+    rebootFn();
+  }
 }
 
 void WebInterface::handleScan() {

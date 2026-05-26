@@ -1,6 +1,16 @@
 # BambuTagger AMS
 
-Multi-spool NFC tag reader for Bambu Lab printers. Reads 4 Bambu Lab filament spool tags via RC522 and sends spool data to the printer over MQTT. Fully configurable via web interface with automatic AP fallback.
+Multi-spool NFC tag reader for Bambu Lab printers. Reads 4 Bambu Lab filament spool tags via RC522, displays live printer AMS tray data over MQTT, and sends RFID tag data back to the printer. Fully configurable via web interface with automatic AP fallback.
+
+## Features
+
+- **4x RC522** on shared SPI bus polling MIFARE Classic 1K spool tags
+- **Live printer AMS sync** — reads tray data (material, color, type) from the printer over MQTT
+- **Web interface** — 3-tab SPA: Status (printer slots + tag slots), Printer Config, WiFi Config
+- **OLED display** — shows live AMS tray data or RFID tag data with MQTT/PTR status
+- **4x WS2812 LEDs** — per-slot color display from tag `colorHex`
+- **MQTT bridge** — subscribes to printer status, publishes `ams_filament_setting` commands
+- **Auto AP fallback** — captive portal on `192.168.4.1` when WiFi is unavailable
 
 ## Hardware
 
@@ -56,7 +66,7 @@ Each WS2812 LED displays the actual filament color read from the tag in its corr
    - **Adafruit GFX Library** by Adafruit (v1.11+)
    - **Adafruit SSD1306** by Adafruit (v2.5+)
    - **PubSubClient** by Nick O'Leary (v2.8+)
-   - **ArduinoJson** by Benoit Blanchon (version 6.x)
+   - **ArduinoJson** by Benoit Blanchon (v6.x or v7.x)
 
 3. Open `BambuTagger-AMS.ino`, select **ESP32 Dev Module** as board, and upload.
 
@@ -82,52 +92,80 @@ Connect to the AP with any phone or laptop, visit `http://192.168.4.1`, enter Wi
 
 Available at `http://<esp32-ip>` on your network, or `http://192.168.4.1` in AP mode.
 
-- **Status** — live view of all 4 slots: UID, material, color hex, filament weight, batch number
-- **WiFi Configuration** — SSID, password, device name
-- **Printer Connection** — printer IP, port (8883 default), access code, serial number, MQTT toggle, update interval
-- **Actions** — manual scan trigger, send tag data to printer
+### Status Tab
+- **Printer AMS Slots** — live tray data from the configured AMS unit over MQTT (type, material, color, color swatch)
+- **RFID Tag Slots** — scanned tag data (UID, material, color, filament weight) with color swatches
+- **Status bar** — WiFi, MQTT, and Printer connection status indicators
+- **Printer AMS Cards** — full AMS unit info (all detected units with tray grids, FW version, serial number)
+- **Actions** — Scan All Slots, Send to Printer, Sync From Printer
 
-All settings persist in ESP32 NVS flash and survive reboots.
+### Printer Config Tab
+- Printer IP, Port (default 8883), Access Code, Serial Number
+- **AMS Unit selector** (A/B/C/D) — selects which AMS unit to display in Slot Status
+- Printer AMS detection status with green/red indicators
+- MQTT enable/disable toggle and update interval
+
+### WiFi Config Tab
+- SSID, Password, Device Name
+- Settings persist in NVS flash and survive reboots
+- Auto-reboot after saving configuration
 
 ## OLED Display (128x64)
 
 ```
-┌──────────────────────────────┐
-│ Device Name           WiFi   │  ← status bar (white on black)
-├──────────────────────────────┤
-│ 1: PLA Basic   #FF0000  85% │  ← slot 1: material, color, fill %
-│ 2: PETG Matte  #00FF00  42% │  ← slot 2
-│ 3: ABS         #0000FF 100% │  ← slot 3
-│ 4: empty                     │  ← slot 4
-├──────────────────────────────┤
-│ MQTT:OK  Printer connected   │  ← footer (MQTT status)
-└──────────────────────────────┘
+┌──────────────────────────────────┐
+│ Device Name                WiFi │  ← status bar (white on black)
+├──────────────────────────────────┤
+│ 1: PLA   #C0C0C0FF              │  ← AMS tray data (live from printer)
+│ 2: empty                        │
+│ 3: empty                        │
+│ 4: empty                        │
+├──────────────────────────────────┤
+│ MQTT:OK                   PTR:OK│  ← footer (MQTT + Printer status)
+└──────────────────────────────────┘
 ```
 
-In AP mode the status bar shows the AP SSID and IP address on the main display area.
+- **MQTT connected + AMS detected**: shows printer tray data (type + color hex) for the configured AMS unit
+- **No MQTT / AMS not detected**: falls back to RFID tag reader data
+- **Status bar**: device name left, WiFi status right-aligned
+- **Footer**: MQTT status left, Printer status right-aligned
 
 ## Printer Communication
 
-Uses MQTT (with optional TLS) to send AMS filament data to the Bambu Lab printer.
+Connects to the Bambu Lab printer over MQTT (unsecure, port 8883) to:
 
-- **Port**: 8883 (default, TLS)
+### Subscribe
+- **Topic**: `device/<serial>/report`
+- **Data received**: `push_status` (periodic, ~3KB status messages) and `get_version` responses
+- **Tray data**: parsed from `print.ams.ams[]` — tray type (PLA/PETG/ABS/etc.), material code, color (RGBA hex)
+- **AMS detection**: parsed from `info.module[]` in `get_version` — module names like `n3f/0`, `n3f/1`
+
+### Publish
 - **Topic**: `device/<serial>/request`
-- **Command**: `ams_filament_setting` — sends material type, color, remaining grams, and tag UID
+- **`get_version`** — discovers AMS units connected to the printer
+- **`pushall`** — requests full printer status including tray data
+- **`ams_filament_setting`** — sends material type, color, remaining grams, and tag UID for each slot
 
-Enable/disable MQTT and configure the update interval via the web interface.
+### AMS Unit Selection
+Use the AMS Unit dropdown in Printer Config to select which physical AMS unit (A/B/C/D) to display in the Status tab and OLED. The web interface shows all detected AMS units with their tray grids.
 
 ## Tag Format
 
-Bambu Lab uses **NTAG216** NFC tags with a TLV-based data structure:
+Bambu Lab uses **MIFARE Classic 1K** NFC tags with a TLV-based data structure:
 
 | Field | Description |
 |-------|-------------|
-| Header | Magic byte (`0x5A`) + version (`0x01`) |
-| Material | Type ID mapped to name (PLA Basic, PETG, ABS, TPU, etc.) |
+| Header | Magic byte (`0x5A`) + version (`0x01`) + 6 reserved bytes |
+| Material | Type ID → name (PLA Basic, PETG, ABS, TPU, etc.) |
 | Color | 3-byte RGB value displayed as hex |
-| Weight | Remaining grams + total grams |
+| Weight | Remaining grams (2 bytes) + total grams (2 bytes) |
 | Batch | Batch/lot number string |
 | Manufacturer | Manufacturer name |
+
+Reading uses MIFARE Classic 1K protocol:
+- Sector-based authentication with key A (`0xFF FF FF FF FF FF`)
+- 16 sectors, 3 data blocks each (skipping block 0 UID and sector trailers)
+- Up to 752 bytes of user data fed to the TLV parser
 
 A fallback parser handles generic NDEF text records for non-Bambu tags.
 
@@ -153,8 +191,10 @@ A fallback parser handles generic NDEF text records for non-Bambu tags.
 | Printer Port | 8883 |
 | Access Code | (empty) |
 | Printer Serial | (empty) |
+| AMS Unit | A (0) |
 | MQTT Enabled | No |
 | MQTT Update Interval | 5000 ms |
+| MQTT Topic Prefix | device |
 
 ## License
 

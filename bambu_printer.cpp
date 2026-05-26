@@ -77,7 +77,7 @@ void BambuPrinter::reconnect() {
     state = PRINTER_CONNECTED;
 
     char topic[128];
-    snprintf(topic, sizeof(topic), "%s/%s/#",
+    snprintf(topic, sizeof(topic), "%s/%s/report",
              config.mqttTopicPrefix, config.printerSerial);
     mqttClient->subscribe(topic);
 
@@ -122,56 +122,103 @@ void BambuPrinter::sendSpoolData(uint8_t slot, const SpoolInfo &info) {
 void BambuPrinter::requestPrinterStatus() {
   if (!config.mqttEnabled || !mqttClient || !mqttClient->connected()) return;
 
-  char payload[128];
-  snprintf(payload, sizeof(payload),
-           "{\"pushing\":{\"sequence_id\":\"%lu\",\"command\":\"pushall\"}}", millis());
-
   char topic[128];
   snprintf(topic, sizeof(topic), "%s/%s/request",
            config.mqttTopicPrefix, config.printerSerial);
 
+  char payload[128];
+  snprintf(payload, sizeof(payload),
+           "{\"info\":{\"sequence_id\":\"0\",\"command\":\"get_version\"}}");
+  mqttClient->publish(topic, payload);
+
+  snprintf(payload, sizeof(payload),
+           "{\"pushing\":{\"sequence_id\":\"0\",\"command\":\"pushall\"}}");
   mqttClient->publish(topic, payload);
 }
 
 void BambuPrinter::mqttCallback(char* topic, byte* payload, unsigned int length) {
   printerOnline = true;
 
+  Serial.printf("MQTT [%s] %u\n", topic, length);
+  // Serial.write(payload, length);  // mute raw JSON
+  // Serial.println();
+
   if (length >= MQTT_BUFFER_SIZE) return;
 
   DynamicJsonDocument doc(MQTT_BUFFER_SIZE);
   DeserializationError err = deserializeJson(doc, payload, length);
-  if (err) return;
+  if (err) {
+    Serial.printf("JSON deser error: %s\n", err.c_str());
+    return;
+  }
 
   parseReport(doc);
 }
 
 void BambuPrinter::parseReport(JsonDocument &doc) {
   JsonObject printObj = doc["print"];
-  if (!printObj) return;
+  JsonObject infoObj = doc["info"];
 
-  JsonObject amsObj = printObj["ams"];
-  if (!amsObj) return;
-
-  if (amsObj.containsKey("ams_exist_bits")) {
-    JsonVariant v = amsObj["ams_exist_bits"];
-    amsExistBits = v.is<const char*>() ? (uint8_t)strtoul(v.as<const char*>(), nullptr, 10) : v.as<uint8_t>();
+  if (printObj) {
+    JsonObject amsObj = printObj["ams"];
+    if (amsObj) {
+      if (amsObj.containsKey("ams_exist_bits")) {
+        JsonVariant v = amsObj["ams_exist_bits"];
+        amsExistBits = v.is<const char*>() ? (uint8_t)strtoul(v.as<const char*>(), nullptr, 10) : v.as<uint8_t>();
+      }
+      JsonArray arr = amsObj["ams"];
+      if (arr) {
+        for (JsonVariant v : arr) {
+          JsonObject a = v.as<JsonObject>();
+          const char* idStr = a["id"].as<const char*>();
+          uint8_t id = (idStr && idStr[0] >= '0' && idStr[0] <= '9') ? (uint8_t)atoi(idStr) : 99;
+          Serial.printf("AMS obj id raw='%s' -> %d\n", idStr ? idStr : "(null)", id);
+          if (id < MAX_DETECTED_AMS) amsExistBits |= (1 << id);
+          JsonArray trays = a["tray"];
+          if (trays) {
+            for (JsonObject t : trays) {
+                const char* tidStr = t["id"].as<const char*>();
+                uint8_t tid = (tidStr && tidStr[0] >= '0' && tidStr[0] <= '9') ? (uint8_t)atoi(tidStr) : 99;
+                if (tid >= 4) continue;
+                const char* mat = t["tray_info_idx"] | "";
+                if (mat) strncpy(detectedAms[id].trays[tid], mat, 31);
+                const char* col = t["tray_color"] | "";
+                if (col) strncpy(detectedAms[id].trayColors[tid], col, 8);
+                const char* ttype = t["tray_type"] | "";
+                if (ttype) strncpy(detectedAms[id].trayTypes[tid], ttype, 15);
+          }
+        }
+        if (id < MAX_DETECTED_AMS) {
+          Serial.printf("AMS%d: tray[0]=%s/%s color=%s\n", id,
+                        detectedAms[id].trayTypes[0], detectedAms[id].trays[0],
+                        detectedAms[id].trayColors[0]);
+        }
+      }
+    }
+  }
   }
 
-  if (amsExistBits == 0) {
-    JsonArray arr = amsObj["ams"];
-    if (arr) {
-      for (JsonObject a : arr) {
-        uint8_t id = a["id"] | 99;
-        if (id < MAX_DETECTED_AMS) amsExistBits |= (1 << id);
-        JsonArray trays = a["tray"];
-        if (trays) {
-          for (JsonObject t : trays) {
-            uint8_t tid = t["id"] | 99;
-            if (tid >= 4) continue;
-            const char* mat = t["tray_info_idx"] | "";
-            if (mat) strncpy(detectedAms[id].trays[tid], mat, 31);
-            const char* col = t["tray_color"] | "";
-            if (col) strncpy(detectedAms[id].trayColors[tid], col, 7);
+  if (infoObj) {
+    JsonArray modules = infoObj["module"];
+    if (modules) {
+      for (JsonVariant mv : modules) {
+        JsonObject m = mv.as<JsonObject>();
+        const char* name = m["name"] | "";
+        Serial.printf("Module: name='%s'\n", name);
+        if (strstr(name, "ams") || strchr(name, '/')) {
+          const char* slash = strchr(name, '/');
+          if (slash) {
+            uint8_t id = (uint8_t)strtoul(slash + 1, nullptr, 10);
+            if (id < MAX_DETECTED_AMS) {
+              amsExistBits |= (1 << id);
+              const char* fw = m["sw_ver"] | "";
+              const char* prod = m["product_name"] | "";
+              const char* sn = m["sn"] | "";
+              if (fw[0]) strncpy(detectedAms[id].fwVer, fw, 31);
+              if (prod[0]) strncpy(detectedAms[id].productName, prod, 31);
+              if (sn[0]) strncpy(detectedAms[id].serial, sn, 31);
+              Serial.printf("AMS%d: fw='%s' prod='%s' sn='%s'\n", id, fw, prod, sn);
+            }
           }
         }
       }
@@ -216,9 +263,29 @@ const char* BambuPrinter::getAmsTrayMaterial(uint8_t amsId, uint8_t trayId) cons
   return detectedAms[amsId].trays[trayId];
 }
 
+const char* BambuPrinter::getAmsTrayType(uint8_t amsId, uint8_t trayId) const {
+  if (amsId >= MAX_DETECTED_AMS || trayId >= 4) return "";
+  return detectedAms[amsId].trayTypes[trayId];
+}
+
 const char* BambuPrinter::getAmsTrayColor(uint8_t amsId, uint8_t trayId) const {
   if (amsId >= MAX_DETECTED_AMS || trayId >= 4) return "";
   return detectedAms[amsId].trayColors[trayId];
+}
+
+const char* BambuPrinter::getAmsFwVer(uint8_t amsId) const {
+  if (amsId >= MAX_DETECTED_AMS) return "";
+  return detectedAms[amsId].fwVer;
+}
+
+const char* BambuPrinter::getAmsProductName(uint8_t amsId) const {
+  if (amsId >= MAX_DETECTED_AMS) return "";
+  return detectedAms[amsId].productName;
+}
+
+const char* BambuPrinter::getAmsSerial(uint8_t amsId) const {
+  if (amsId >= MAX_DETECTED_AMS) return "";
+  return detectedAms[amsId].serial;
 }
 
 void BambuPrinter::staticMqttCallback(char* topic, byte* payload, unsigned int length) {

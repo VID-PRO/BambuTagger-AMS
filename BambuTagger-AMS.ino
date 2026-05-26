@@ -45,6 +45,7 @@ void updateLedStatus();
 
 void setup() {
   Serial.begin(115200);
+  delay(1500);
   Serial.println();
   Serial.println(F("=== BambuTagger AMS v1.0 ==="));
   Serial.println(F("Multi-Spool NFC Tag Reader for Bambu Lab"));
@@ -134,7 +135,8 @@ void loop() {
       rfidManager.getSpoolInfo(i, displaySlots[i]);
     }
     bool mqttOk = bambuPrinter.isConnected();
-    displayManager.update(displaySlots, wifiConnected, mqttOk);
+    displayManager.update(displaySlots, wifiConnected, mqttOk,
+                          &bambuPrinter, cfg.amsUnit);
   }
 
   if (now - lastMqttUpdate > (cfg.mqttUpdateIntervalMs > 0 ? cfg.mqttUpdateIntervalMs : 5000)) {

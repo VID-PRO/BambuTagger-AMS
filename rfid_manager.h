@@ -19,6 +19,7 @@ private:
   void deselectAll();
   bool readNtag(uint8_t slot, SpoolInfo &info);
   bool authenticateAndRead(uint8_t slot, SpoolInfo &info);
+  bool readNtagPages(uint8_t slot, SpoolInfo &info);
 
   MFRC522* mfrc522[NUM_SLOTS];
   SpoolInfo spoolData[NUM_SLOTS];

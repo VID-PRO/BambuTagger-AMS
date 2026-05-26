@@ -6,6 +6,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include "config.h"
+#include "bambu_printer.h"
 #include "splash_logo.h"
 
 #define SCREEN_WIDTH  128
@@ -16,7 +17,8 @@ class DisplayManager {
 public:
   void begin(const char* deviceName);
   void update(const SpoolInfo slots[NUM_SLOTS], bool wifiConnected,
-              bool mqttConnected);
+              bool mqttConnected, BambuPrinter* printer = nullptr,
+              uint8_t amsUnit = 0);
   void showMessage(const char* line1, const char* line2 = nullptr,
                    const char* line3 = nullptr, const char* line4 = nullptr);
   void showBootScreen();
@@ -24,7 +26,8 @@ public:
 private:
   void drawStatusBar(bool wifiConnected);
   void drawSlotGrid(const SpoolInfo slots[NUM_SLOTS]);
-  void drawFooter(bool mqttConnected);
+  void drawPrinterSlots(BambuPrinter* printer, uint8_t amsUnit);
+  void drawFooter(bool mqttConnected, bool printerOnline);
 
   Adafruit_SSD1306* display;
   char deviceName[32];

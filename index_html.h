@@ -95,7 +95,7 @@ color:#fff;font-size:14px;opacity:0;transition:opacity .3s;z-index:1000}
 
 <div class="card">
 <h2>Printer AMS Slots</h2>
-<div class="slot-grid" id="printerAmsGrid"><span style="color:#8b949e">Not synced — click Sync From Printer</span></div>
+<div id="printerAmsCards"><span style="color:#8b949e">Not synced — click Sync From Printer</span></div>
 </div>
 </div>
 
@@ -157,20 +157,44 @@ function getLedClass(info){if(!info.present)return'led-off';
 if(info.tagReadSuccess)return'led-green';
 return'led-yellow'}
 
+function getPrinterLedClass(ps){
+if(!ps.amsConnected)return'led-off';
+if(ps.hasSpool)return'led-green';
+return'led-yellow'
+}
+
 function updateSlots(data){
 var g=document.getElementById('slotGrid'),h='';
+var ps=data.printerSlots||[];
+var amsLabels={0:'A',1:'B',2:'C',3:'D'};
+for(var i=0;i<ps.length;i++){
+var p=ps[i];
+h+='<div class="slot">';
+h+='<div class="slot-title"><span class="led '+getPrinterLedClass(p)+'"></span>AMS Slot '+(i+1)+'</div>';
+h+='<div style="display:flex;align-items:center;gap:8px">';
+h+='<div class="slot-detail" style="flex:1">';
+if(p.hasSpool){
+h+='Type: '+p.trayType+'<br>';
+h+='Material: '+p.material+'<br>';
+h+='Color: '+p.color;
+}else{h+='No spool detected'}
+h+='</div>';
+if(p.hasSpool&&p.color)h+='<div style="width:36px;height:36px;border-radius:4px;background:#'+p.color.substring(0,6)+';flex-shrink:0;border:1px solid #484f58"></div>';
+h+='</div></div>'}
+// RFID tag slots
 for(var i=0;i<data.slots.length;i++){
 var s=data.slots[i];
+if(!s.present)continue;
 h+='<div class="slot">';
-h+='<div class="slot-title"><span class="led '+getLedClass(s)+'"></span>Slot '+(i+1)+'</div>';
-h+='<div class="slot-detail">';
-if(s.present){
+h+='<div class="slot-title"><span class="led '+getLedClass(s)+'"></span>Tag Slot '+(i+1)+'</div>';
+h+='<div style="display:flex;align-items:center;gap:8px">';
+h+='<div class="slot-detail" style="flex:1">';
 h+='UID: '+s.uid+'<br>';
 h+='Material: '+s.materialType+'<br>';
-h+='Color: '+s.color+' ('+s.colorHex+')<br>';
-if(s.totalGrams>0)h+='Filament: '+s.remainingGrams+'g / '+s.totalGrams+'g<br>';
-if(s.batchNumber)h+='Batch: '+s.batchNumber+'<br>';
-}else{h+='No tag detected'}
+h+='Color: '+s.color+' ('+s.colorHex+')';
+if(s.totalGrams>0)h+='<br>'+s.remainingGrams+'g / '+s.totalGrams+'g';
+h+='</div>';
+if(s.colorHex)h+='<div style="width:36px;height:36px;border-radius:4px;background:#'+s.colorHex+';flex-shrink:0;border:1px solid #484f58"></div>';
 h+='</div></div>'}
 g.innerHTML=h;
 document.getElementById('wifiStatus').textContent='WiFi: '+(data.wifiConnected?'Connected':'Disconnected');
@@ -182,24 +206,24 @@ document.getElementById('printerDot').className='status-dot '+(data.printerOnlin
 if(data.detectedAms){
 var ams=data.detectedAms,labels=['A','B','C','D'];
 
-// printer AMS grid
+// printer AMS cards - one per AMS unit
 var printerHtml='';
 for(var a=0;a<ams.units.length;a++){
 var u=ams.units[a];
 if(!u.connected)continue;
+printerHtml+='<div style="border:1px solid #30363d;border-radius:6px;padding:12px;margin-bottom:8px">';
+printerHtml+='<div style="font-weight:bold;font-size:13px;color:#58a6ff;margin-bottom:4px">'+labels[a]+'</div>';
+printerHtml+='<div style="font-size:11px;color:#8b949e;margin-bottom:8px">'+(u.productName||'AMS')+' &middot; FW '+(u.fwVer||'?')+' &middot; SN '+(u.serial||'?')+'</div>';
+printerHtml+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
 for(var t=0;t<u.trays.length;t++){
 var tr=u.trays[t];
-var hasSpool=tr.material&&tr.material.length>0;
-printerHtml+='<div class="slot">';
-printerHtml+='<div class="slot-title">AMS '+labels[a]+' T'+(t+1)+(hasSpool?' <span class="led led-green"></span>':'')+'</div>';
-printerHtml+='<div class="slot-detail">';
-if(hasSpool){
-printerHtml+='Material: '+tr.material+'<br>';
-if(tr.color)printerHtml+='Color: #'+tr.color;
-}else{printerHtml+='empty'}
+var hasSpool=tr.trayType&&tr.trayType.length>0;
+printerHtml+='<div style="border:1px solid #30363d;border-radius:4px;padding:8px;font-size:12px;display:flex;align-items:center;gap:6px">';
+if(hasSpool&&tr.color){printerHtml+='<span style="width:14px;height:14px;border-radius:3px;background:#'+tr.color.substring(0,6)+';flex-shrink:0;border:1px solid #484f58"></span>'}
+printerHtml+='SLOT'+(t+1)+': '+(hasSpool?('<span style="color:#3fb950">'+tr.trayType+'</span>'):'<span style="color:#8b949e">empty</span>');
+printerHtml+='</div>'}
 printerHtml+='</div></div>'}
-}
-document.getElementById('printerAmsGrid').innerHTML=printerHtml||'<span style="color:#8b949e">No AMS data — click Sync From Printer</span>';
+document.getElementById('printerAmsCards').innerHTML=printerHtml||'<span style="color:#8b949e">No AMS data — click Sync From Printer</span>';
 
 // AMS status dropdown
 var status=[];
@@ -236,7 +260,7 @@ wifiPassword:document.getElementById('wifiPassword').value,
 deviceName:document.getElementById('deviceName').value};
 fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
 body:JSON.stringify(d)}).then(function(r){return r.json()})
-.then(function(j){showToast(j.ok?'Settings saved. Reboot required.':'Save failed',j.ok)})
+.then(function(j){showToast(j.ok?'Settings saved. Rebooting...':'Save failed',j.ok)})
 .catch(function(){showToast('Save failed',false)})}
 
 function savePrinter(){var d={printerIP:document.getElementById('printerIP').value,
@@ -248,7 +272,7 @@ mqttEnabled:document.getElementById('mqttEnabled').checked,
 mqttInterval:parseInt(document.getElementById('mqttInterval').value)||5000};
 fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
 body:JSON.stringify(d)}).then(function(r){return r.json()})
-.then(function(j){showToast(j.ok?'Settings saved. Reboot required.':'Save failed',j.ok)})
+.then(function(j){showToast(j.ok?'Settings saved. Rebooting...':'Save failed',j.ok)})
 .catch(function(){showToast('Save failed',false)})}
 
 function loadConfig(){fetch('/api/config').then(function(r){return r.json()}).then(function(c){

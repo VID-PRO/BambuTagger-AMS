@@ -8,14 +8,18 @@
 #include <ArduinoJson.h>
 #include "config.h"
 
-#define MQTT_BUFFER_SIZE 4096
+#define MQTT_BUFFER_SIZE 32768
 #define MAX_DETECTED_AMS 4
 
 struct AmsInfo {
   uint8_t id;
   bool connected;
+  char fwVer[32];
+  char productName[32];
+  char serial[32];
   char trays[4][32];
-  char trayColors[4][8];
+  char trayTypes[4][16];
+  char trayColors[4][9];
 };
 
 enum PrinterState {
@@ -32,12 +36,17 @@ public:
   void sendSpoolData(uint8_t slot, const SpoolInfo &info);
   void requestPrinterStatus();
   bool isConnected() const;
+  bool isPrinterOnline() const { return printerOnline; }
   PrinterState getState() const;
   bool isAmsDetected(uint8_t amsId) const;
   uint8_t getAmsExistBits() const;
   uint8_t getDetectedAmsCount() const;
   const char* getAmsTrayMaterial(uint8_t amsId, uint8_t trayId) const;
+  const char* getAmsTrayType(uint8_t amsId, uint8_t trayId) const;
   const char* getAmsTrayColor(uint8_t amsId, uint8_t trayId) const;
+  const char* getAmsFwVer(uint8_t amsId) const;
+  const char* getAmsProductName(uint8_t amsId) const;
+  const char* getAmsSerial(uint8_t amsId) const;
   void reconnect();
 
 private:
