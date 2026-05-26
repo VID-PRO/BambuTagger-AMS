@@ -1,0 +1,64 @@
+#ifndef BAMBU_PRINTER_H
+#define BAMBU_PRINTER_H
+
+#include <Arduino.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include "config.h"
+
+#define MQTT_BUFFER_SIZE 4096
+#define MAX_DETECTED_AMS 4
+
+struct AmsInfo {
+  uint8_t id;
+  bool connected;
+  char trays[4][32];
+  char trayColors[4][8];
+};
+
+enum PrinterState {
+  PRINTER_DISCONNECTED,
+  PRINTER_CONNECTING,
+  PRINTER_CONNECTED,
+  PRINTER_ERROR
+};
+
+class BambuPrinter {
+public:
+  void begin(const SystemConfig &cfg);
+  void update();
+  void sendSpoolData(uint8_t slot, const SpoolInfo &info);
+  void requestPrinterStatus();
+  bool isConnected() const;
+  PrinterState getState() const;
+  bool isAmsDetected(uint8_t amsId) const;
+  uint8_t getAmsExistBits() const;
+  uint8_t getDetectedAmsCount() const;
+  const char* getAmsTrayMaterial(uint8_t amsId, uint8_t trayId) const;
+  const char* getAmsTrayColor(uint8_t amsId, uint8_t trayId) const;
+  void reconnect();
+
+private:
+  void mqttCallback(char* topic, byte* payload, unsigned int length);
+  static void staticMqttCallback(char* topic, byte* payload, unsigned int length);
+  void parseReport(JsonDocument &doc);
+
+  WiFiClient* tcpClient;
+  WiFiClientSecure* tlsClient;
+  PubSubClient* mqttClient;
+  SystemConfig config;
+  PrinterState state;
+  char mqttClientId[48];
+  unsigned long lastReconnectAttempt;
+  unsigned long lastStatusRequest;
+  bool printerOnline;
+  bool amsDetected;
+  uint8_t amsExistBits;
+  AmsInfo detectedAms[MAX_DETECTED_AMS];
+
+  static BambuPrinter* instance;
+};
+
+#endif
