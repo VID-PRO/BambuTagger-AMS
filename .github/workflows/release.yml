@@ -43,8 +43,9 @@ jobs:
         run: |
           arduino-cli compile --fqbn ${{ matrix.board.fqbn }} .
           mkdir -p release
-          cp build/${{ matrix.board.fqbn }}/BambuTagger-AMS.ino.bin release/BambuTagger-AMS-${{ matrix.board.name }}.bin
-          cp build/${{ matrix.board.fqbn }}/BambuTagger-AMS.ino.elf release/BambuTagger-AMS-${{ matrix.board.name }}.elf
+          find build -name "*.bin" -exec cp {} release/BambuTagger-AMS-${{ matrix.board.name }}.bin \;
+          find build -name "*.elf" -exec cp {} release/BambuTagger-AMS-${{ matrix.board.name }}.elf \;
+          ls -la release/
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
