@@ -279,16 +279,123 @@ void performOTAUpdate() {
 
   WiFiClientSecure client;
   client.setInsecure();
-
   HTTPClient http;
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
-  String url = String("https://api.github.com/repos/") + OTA_REPO + "/releases/latest";
-  if (!http.begin(client, url)) {
-    displayManager.showOtaProgress("OTA Update", "", "HTTP begin failed");
+  http.begin(client, String("https://api.github.com/repos/") + OTA_REPO + "/releases/latest");
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
+
+  int code = http.GET();
+  if (code != 200) {
+    http.end();
+    displayManager.showOtaProgress("OTA Update", "", "GitHub API error");
     delay(3000);
     return;
   }
+
+  StaticJsonDocument<96> filter;
+  filter["tag_name"] = true;
+  JsonArray fa = filter.createNestedArray("assets");
+  JsonObject fa0 = fa.createNestedObject();
+  fa0["name"]                 = true;
+  fa0["browser_download_url"] = true;
+  fa0["size"]                 = true;
+
+  DynamicJsonDocument doc(8192);
+  DeserializationError err = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
+  http.end();
+  if (err) {
+    displayManager.showOtaProgress("OTA Update", "", "JSON parse error");
+    delay(3000);
+    return;
+  }
+
+  String tag = doc["tag_name"] | "";
+  if (tag.startsWith("v") || tag.startsWith("V")) tag = tag.substring(1);
+  if (!tag.length()) {
+    displayManager.showOtaProgress("OTA Update", "", "No release found");
+    delay(3000);
+    return;
+  }
+
+  // Version check
+  int rMaj = 0, rMin = 0, rPat = 0, lMaj = 0, lMin = 0, lPat = 0;
+  sscanf(tag.c_str(), "%d.%d.%d", &rMaj, &rMin, &rPat);
+  const char* l = FIRMWARE_VERSION;
+  if (l[0] == 'v' || l[0] == 'V') l++;
+  sscanf(l, "%d.%d.%d", &lMaj, &lMin, &lPat);
+  if (rMaj * 10000 + rMin * 100 + rPat <= lMaj * 10000 + lMin * 100 + lPat) {
+    displayManager.showOtaProgress("OTA Update", "", "Already up to date");
+    delay(3000);
+    return;
+  }
+
+  JsonArray assets = doc["assets"];
+  String dlUrl;
+  int binSize = 0;
+  for (JsonObject asset : assets) {
+    String name = asset["name"] | "";
+    if (name.endsWith(".bin") && name.indexOf("merged") < 0 &&
+        name.indexOf("bootloader") < 0 && name.indexOf("partition") < 0) {
+      dlUrl = asset["browser_download_url"] | "";
+      binSize = asset["size"] | 0;
+      break;
+    }
+  }
+
+  if (!dlUrl.length()) {
+    displayManager.showOtaProgress("OTA Update", "", "No .bin found");
+    delay(3000);
+    return;
+  }
+
+  displayManager.showOtaProgress("OTA Update", "Downloading...", tag.c_str());
+
+  http.begin(client, dlUrl);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
+  code = http.GET();
+  if (code != 200) { http.end(); return; }
+
+  int totalSize = (binSize > 0) ? binSize : http.getSize();
+  if (!Update.begin((totalSize > 0) ? (size_t)totalSize : UPDATE_SIZE_UNKNOWN)) {
+    http.end();
+    displayManager.showOtaProgress("OTA Update", "", "Update begin failed");
+    delay(3000);
+    return;
+  }
+
+  WiFiClient* stream = http.getStreamPtr();
+  uint8_t buf[512];
+  int written = 0;
+  unsigned long lastDraw = 0;
+
+  while (http.connected() && (totalSize <= 0 || written < totalSize)) {
+    int avail = stream->available();
+    if (!avail) { delay(2); continue; }
+    int n = stream->readBytes(buf, min(avail, (int)sizeof(buf)));
+    if (n <= 0) break;
+    if (Update.write(buf, n) != (size_t)n) {
+      http.end(); Update.abort();
+      displayManager.showOtaProgress("OTA Update", "", "Write error");
+      delay(3000);
+      return;
+    }
+    written += n;
+    if (millis() - lastDraw > 200) {
+      int pct = (totalSize > 0) ? (written * 100 / totalSize) : 50;
+      displayManager.showOtaProgress("OTA Update", "Flashing...", tag.c_str(), pct);
+      lastDraw = millis();
+    }
+  }
+  http.end();
+
+  if (!Update.end(true)) {
+    displayManager.showOtaProgress("OTA Update", "", "Update end failed");
+    delay(5000);
+    return;
+  }
+}
   http.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
 
   int code = http.GET();
