@@ -363,14 +363,14 @@ void performOTAUpdate() {
   }
 
   displayManager.showOtaProgress("OTA Update", "Downloading...", tag);
-  if (!http.begin(client, binUrl)) {
-    displayManager.showOtaProgress("OTA Update", "", "Download failed");
-    delay(3000);
-    return;
-  }
+  http.begin(client, binUrl);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.setTimeout(60000);
   http.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
 
   code = http.GET();
+  int totalSize = (binSize > 0) ? binSize : http.getSize();
+  Serial.printf("OTA: download GET=%d size=%d\n", code, totalSize);
   if (code != 200) {
     displayManager.showOtaProgress("OTA Update", "", "Download error");
     delay(3000);
@@ -378,7 +378,6 @@ void performOTAUpdate() {
     return;
   }
 
-  int totalSize = (binSize > 0) ? binSize : http.getSize();
   if (!Update.begin((totalSize > 0) ? (size_t)totalSize : UPDATE_SIZE_UNKNOWN)) {
     displayManager.showOtaProgress("OTA Update", "", "Update begin failed");
     delay(3000);
@@ -394,15 +393,17 @@ void performOTAUpdate() {
   while (http.connected() && (totalSize <= 0 || written < totalSize)) {
     int avail = stream->available();
     if (!avail) { delay(2); continue; }
-    int n = stream->readBytes(buf, ((size_t)avail < sizeof(buf)) ? avail : sizeof(buf));
+    int n = stream->read(buf, ((size_t)avail < sizeof(buf)) ? avail : sizeof(buf));
     if (n <= 0) break;
     if (Update.write(buf, n) != (size_t)n) {
+      Serial.printf("OTA: write error at %d: %s\n", written, Update.errorString());
       http.end(); Update.abort();
       displayManager.showOtaProgress("OTA Update", "", "Write error");
       delay(3000);
       return;
     }
     written += n;
+    if (written % 65536 == 0) Serial.printf("OTA: written=%d/%d\n", written, totalSize);
     if (millis() - lastDraw > 200) {
       int pct = (totalSize > 0) ? (written * 100 / totalSize) : 50;
       displayManager.showOtaProgress("OTA Update", "Flashing...", tag, pct);
@@ -410,15 +411,13 @@ void performOTAUpdate() {
     }
   }
   http.end();
+  Serial.printf("OTA: loop done, written=%d, connected=%d\n", written, http.connected());
 
   if (!Update.end(true)) {
+    Serial.printf("OTA: Update.end failed: %s\n", Update.errorString());
     displayManager.showOtaProgress("OTA Update", "", "Update end failed");
-    delay(3000);
+    delay(5000);
     return;
   }
-
-  // Update.end(true) reboots — we only get here on failure
-  displayManager.showOtaProgress("OTA Update", "", "Success! Rebooting...");
-  delay(2000);
-  ESP.restart();
+  // Update.end(true) reboots on success — unreachable
 }

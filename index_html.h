@@ -285,17 +285,21 @@ var bar=document.getElementById('otaBar');
 bar.style.width='10%';
 fetch('/api/ota',{method:'POST'}).then(function(r){return r.json()})
 .then(function(d){
-  document.getElementById('otaOverlaySub').textContent='Flashing...';
-  bar.style.width='40%';
-  var pct=40;
-  var sim=setInterval(function(){pct+=2;if(pct>90)pct=90;bar.style.width=pct+'%'},500);
+  document.getElementById('otaOverlaySub').textContent='Waiting for reboot...';
+  bar.style.width='30%';
+  var pct=30,attempts=0;
+  var sim=setInterval(function(){pct+=1;if(pct<95)bar.style.width=pct+'%'},800);
   var check=setInterval(function(){
-    fetch('/api/version').then(function(){
+    attempts++;
+    fetch('/api/version').then(function(r){return r.json()}).then(function(v){
       clearInterval(sim);clearInterval(check);
       bar.style.width='100%';
-      document.getElementById('otaOverlaySub').textContent='Rebooting...';
-      setTimeout(function(){location.reload()},2000);
-    }).catch(function(){})
+      document.getElementById('otaOverlaySub').textContent='Device is back! Reloading...';
+      setTimeout(function(){location.reload()},1500);
+    }).catch(function(){});
+    if(attempts>40){clearInterval(sim);clearInterval(check);
+      ov.classList.remove('active');b.disabled=false;
+      showToast('Device did not come back — try manual reboot',false)}
   },3000);
 })
 .catch(function(){ov.classList.remove('active');b.disabled=false;showToast('OTA failed',false)})}
