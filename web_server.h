@@ -12,7 +12,8 @@
 class WebInterface {
 public:
   void begin(SystemConfig &cfg, RfidManager* rfid, BambuPrinter* printer,
-             void (*rebootCallback)(void) = nullptr);
+             void (*rebootCallback)(void) = nullptr,
+             void (*otaCallback)(void) = nullptr);
   void handleClient();
   void updateStatus(bool wifiConnected, const char* ipAddress,
                     bool mqttConnected, bool printerOnline);
@@ -27,6 +28,9 @@ private:
   void handleScan();
   void handleSend();
   void handleSync();
+  void handleOta();
+  void handleOtaCheck();
+  void handleVersion();
   void sendJsonResponse(JsonDocument &doc, int code = 200);
   void setupRoutes();
 
@@ -35,6 +39,7 @@ private:
   RfidManager* rfidManager;
   BambuPrinter* bambuPrinter;
   void (*rebootFn)(void);
+  void (*otaFn)(void);
 
   bool wifiStatus;
   String ipAddress;

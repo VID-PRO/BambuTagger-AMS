@@ -68,7 +68,7 @@ color:#fff;font-size:14px;opacity:0;transition:opacity .3s;z-index:1000}
 </style>
 </head>
 <body>
-<header><div class="logo"><img style="vertical-align:middle" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgAgMAAAAOFJJnAAABhWlDQ1BJQ0MgcHJvZmlsZQAAKJF9kb9Lw0AcxV9bS6VUHawg4pChOrWLijiWKhbBQmkrtOpgcukvaNKQpLg4Cq4FB38sVh1cnHV1cBUEwR8g/gHipOgiJX4vKbSI8eC4D+/uPe7eAd5WjSlGXxxQVFPPJBNCvrAqBF7hRxAjGERUZIaWyi7m4Dq+7uHh612MZ7mf+3MMyEWDAR6BOM403STeIJ7dNDXO+8RhVhFl4nPiqE4XJH7kuuTwG+eyzV6eGdZzmXniMLFQ7mGph1lFV4hniCOyolK+N++wzHmLs1JrsM49+QtDRXUly3Wa40hiCSmkIUBCA1XUYCJGq0qKgQztJ1z8Y7Y/TS6JXFUwciygDgWi7Qf/g9/dGqXpKScplAD8L5b1MQEEdoF207K+jy2rfQL4noErteuvt4C5T9KbXS1yBAxtAxfXXU3aAy53gNEnTdRFW/LR9JZKwPsZfVMBGL4FgmtOb519nD4AOepq+QY4OAQmy5S97vLu/t7e/j3T6e8HrYRyvp7c8c0AAAAJUExURXIA83m/boC9efRkY8YAAAABdFJOUwBA5thmAAAAAWJLR0QAiAUdSAAAAL1JREFUGNNNkLEKg0AMhv8GHO52H0FR36SbCJHD6XASn+Lazb1XHG8R1Kds7kqLgZAvGZL/D3CJbXCp1sxTAs/cx5HmvWErUJhvYgsA9QJv6AAvzUqeXe5Au5qPNrMyL4GXslCuAppbK4B6AhkUDr6PUDpYBQiUgZw2Bs02KJsn4KVjgWLh+8idQbawVTwaqGeERwttfZv1coKMXrMgR2lFVcX9f2GIm5PUwpBL4omPOdlJBpNT9bOM87y+5AM/WTesHvLO9wAAAABJRU5ErkJggg=="><h1>BambuTagger AMS</h1></div></header>
+<header><div class="logo"><img style="vertical-align:middle" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgAgMAAAAOFJJnAAABhWlDQ1BJQ0MgcHJvZmlsZQAAKJF9kb9Lw0AcxV9bS6VUHawg4pChOrWLijiWKhbBQmkrtOpgcukvaNKQpLg4Cq4FB38sVh1cnHV1cBUEwR8g/gHipOgiJX4vKbSI8eC4D+/uPe7eAd5WjSlGXxxQVFPPJBNCvrAqBF7hRxAjGERUZIaWyi7m4Dq+7uHh612MZ7mf+3MMyEWDAR6BOM403STeIJ7dNDXO+8RhVhFl4nPiqE4XJH7kuuTwG+eyzV6eGdZzmXniMLFQ7mGph1lFV4hniCOyolK+N++wzHmLs1JrsM49+QtDRXUly3Wa40hiCSmkIUBCA1XUYCJGq0qKgQztJ1z8Y7Y/TS6JXFUwciygDgWi7Qf/g9/dGqXpKScplAD8L5b1MQEEdoF207K+jy2rfQL4noErteuvt4C5T9KbXS1yBAxtAxfXXU3aAy53gNEnTdRFW/LR9JZKwPsZfVMBGL4FgmtOb519nD4AOepq+QY4OAQmy5S97vLu/t7e/j3T6e8HrYRyvp7c8c0AAAAJUExURXIA83m/boC9efRkY8YAAAABdFJOUwBA5thmAAAAAWJLR0QAiAUdSAAAAL1JREFUGNNNkLEKg0AMhv8GHO52H0FR36SbCJHD6XASn+Lazb1XHG8R1Kds7kqLgZAvGZL/D3CJbXCp1sxTAs/cx5HmvWErUJhvYgsA9QJv6AAvzUqeXe5Au5qPNrMyL4GXslCuAppbK4B6AhkUDr6PUDpYBQiUgZw2Bs02KJsn4KVjgWLh+8idQbawVTwaqGeERwttfZv1coKMXrMgR2lFVcX9f2GIm5PUwpBL4omPOdlJBpNT9bOM87y+5AM/WTesHvLO9wAAAABJRU5ErkJggg=="><h1>BambuTagger AMS <span style="font-size:10px;color:#8b949e" id="fwVersion"></span></h1></div></header>
 <nav>
 <a class="active" onclick="switchPage('status')">Status</a>
 <a onclick="switchPage('printer')">Printer Config</a>
@@ -86,11 +86,12 @@ color:#fff;font-size:14px;opacity:0;transition:opacity .3s;z-index:1000}
 <div><span class="status-dot" id="mqttDot"></span><span id="mqttStatus">MQTT: --</span></div>
 <div><span class="status-dot" id="printerDot"></span><span id="printerStatus">Printer: --</span></div>
 </div>
-<div class="actions">
-<button class="btn btn-primary" onclick="scanAll()">Scan All Slots</button>
-<button class="btn btn-secondary" onclick="sendAll()">Send to Printer</button>
-<button class="btn btn-secondary" onclick="syncPrinter()">Sync From Printer</button>
-</div>
+  <div class="actions">
+  <button class="btn btn-primary" onclick="scanAll()">Scan All Slots</button>
+  <button class="btn btn-secondary" onclick="sendAll()">Send to Printer</button>
+  <button class="btn btn-secondary" onclick="syncPrinter()">Sync From Printer</button>
+  <button class="btn btn-danger" id="otaBtn" onclick="updateFirmware()">Update Firmware</button>
+  </div>
 </div>
 
 <div class="card">
@@ -258,6 +259,22 @@ function syncPrinter(){fetch('/api/sync',{method:'POST'}).then(function(r){retur
 .then(function(d){showToast(d.ok?'Syncing from printer...':'Sync failed: '+d.error,d.ok)})
 .catch(function(){showToast('Sync failed',false)})}
 
+function updateFirmware(){
+var b=document.getElementById('otaBtn');
+if(b.textContent.indexOf('up to date')>=0)return;
+if(!confirm('Update firmware from GitHub? Device will reboot.'))return;
+fetch('/api/ota',{method:'POST'}).then(function(r){return r.json()})
+.then(function(d){showToast(d.message||'Update started',d.ok)})
+.catch(function(){showToast('OTA failed',false)})}
+
+function checkOta(){
+fetch('/api/ota-check').then(function(r){return r.json()}).then(function(v){
+var b=document.getElementById('otaBtn');
+if(v.error){b.textContent='OTA: error';b.disabled=true;return}
+if(v.newer){b.textContent='Update to '+v.latest;b.className='btn btn-primary'}
+else{b.textContent='Firmware up to date ('+v.current+')';b.className='btn btn-secondary'}
+})}
+
 function saveWiFi(){var d={wifiSSID:document.getElementById('wifiSSID').value,
 wifiPassword:document.getElementById('wifiPassword').value,
 deviceName:document.getElementById('deviceName').value};
@@ -293,6 +310,9 @@ document.getElementById('amsUnit').value=c.amsUnit||0})}
 loadConfig();
 fetchStatus();
 setInterval(fetchStatus,3000);
+fetch('/api/version').then(function(r){return r.json()}).then(function(v){
+document.getElementById('fwVersion').textContent='v'+v.version})
+checkOta()
 </script>
 </body>
 </html>

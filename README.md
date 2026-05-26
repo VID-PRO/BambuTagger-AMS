@@ -1,17 +1,19 @@
 # <img alt="logo" src="Logo/bambutagger.png" height="36" />  BambuTagger-AMS
 
-Multi-spool NFC tag reader for Bambu Lab printers. Reads 4 Bambu Lab filament spool tags via RC522, displays live printer AMS tray data over MQTT, and sends RFID tag data back to the printer. Fully configurable via web interface with automatic AP fallback.
+Multi-spool NFC tag reader for Bambu Lab printers. Reads 4 Bambu Lab filament spool tags via RC522, displays live printer AMS tray data over MQTT, and sends RFID tag data to the printer/BMCU. Fully configurable via web interface with automatic AP fallback and OTA firmware updates.
 
 ## Features
 
 - **4x RC522** on shared SPI bus polling MIFARE Classic 1K spool tags via `MFRC522-spi-i2c-uart-async`
 - **HKDF-SHA256 key derivation** — derives per-sector MIFARE keys from the tag UID using Bambu's KDF salt
 - **Live printer AMS sync** — reads tray data (material, color, type) from the printer over MQTT
-- **Web interface** — 3-tab SPA: Status (AMS slots + scanned tag data merged), Printer Config, WiFi Config
-- **OLED display** — shows live AMS tray data or RFID tag data with MQTT+PTR status
+- **Bambu BMCU support** — sends `ams_filament_setting` with correct `tray_type`, `tray_color`, `nozzle_temp_min/max`
+- **Web interface** — 3-tab SPA: Status (AMS slots + scanned tag data merged with Sub type), Printer Config, WiFi Config
+- **OLED display** — shows live AMS tray data, OTA progress, MQTT+PTR status
 - **4x WS2812 LEDs** — per-slot color display from tag `colorHex`
 - **MQTT bridge** — subscribes to printer status, publishes `ams_filament_setting` commands
 - **Auto AP fallback** — captive portal on `192.168.4.1` when WiFi is unavailable
+- **OTA updates** — one-click firmware update from GitHub Releases with OLED progress display
 - **GitHub Actions** — CI build on commit, release artifacts on version tags
 
 ## Hardware
@@ -42,8 +44,6 @@ Multi-spool NFC tag reader for Bambu Lab printers. Reads 4 Bambu Lab filament sp
 
 All RC522 share the same SPI bus (MOSI, MISO, SCK). Each has its own SS and RST pin.
 
-WS2812 LEDs connect in daisy-chain: `ESP32 GPIO 15 → LED #1 DIN → LED #1 DOUT → LED #2 DIN → ... → LED #4`.
-
 ### Slot Mapping
 
 | RC522 # | SS Pin | Slot | WS2812 Pixel |
@@ -53,8 +53,6 @@ WS2812 LEDs connect in daisy-chain: `ESP32 GPIO 15 → LED #1 DIN → LED #1 DOU
 | 3 | 14 | 3 | 2 |
 | 4 | 27 | 4 | 3 |
 
-Each WS2812 LED displays the actual filament color read from the tag in its corresponding slot.
-
 ## Software Setup (Arduino IDE)
 
 1. Install **ESP32 board package**:  
@@ -63,13 +61,13 @@ Each WS2812 LED displays the actual filament color read from the tag in its corr
    Then Tools → Board → Boards Manager → search "ESP32" → install.
 
 2. Install required libraries via **Tools → Manage Libraries**:
-   - **MFRC522-spi-i2c-uart-async** (not the standard MFRC522 — used for multi-reader SPI sharing)
+   - **MFRC522-spi-i2c-uart-async** — multi-reader SPI sharing (not standard MFRC522)
    - **Adafruit NeoPixel** by Adafruit (v1.12+)
    - **Adafruit GFX Library** by Adafruit (v1.11+)
    - **Adafruit SSD1306** by Adafruit (v2.5+)
    - **PubSubClient** by Nick O'Leary (v2.8+)
    - **ArduinoJson** by Benoit Blanchon (v6.x or v7.x)
-   - **mbedTLS** (bundled with ESP32 Arduino core — no extra install needed)
+   - **mbedTLS** — bundled with ESP32 core, used for HKDF-SHA256
 
 3. Open `BambuTagger-AMS.ino`, select **ESP32 Dev Module** as board, and upload.
 
@@ -89,64 +87,68 @@ On first boot (or if saved WiFi credentials are invalid), the device automatical
 - **IP**: `192.168.4.1`
 - **Captive portal**: DNS redirects all domains to the config page
 
-Connect to the AP with any phone or laptop, visit `http://192.168.4.1`, enter WiFi credentials, and save. The device connects and AP mode closes automatically.
-
 ## Web Interface
 
 Available at `http://<esp32-ip>` on your network, or `http://192.168.4.1` in AP mode.
 
 ### Status Tab
-- **Merged Slot Status** — each slot shows AMS printer data (Type, Sub, Material, Color) combined with scanned RFID tag data in one card
-- **Color swatches** — 36x36px right-aligned swatch per slot
+- **Merged Slot Status** — each slot shows AMS data (Type, Sub, Material, Color) + scanned tag data
+- **Color swatches** — 36x36px right-aligned per slot
 - **Tag info row** — `Tag: PLA Basic - GFA00 · C12E1FFF · 1000g/1000g`
-- **Printer AMS Cards** — all detected AMS units with tray grids (Type, material code, sub with detailed type, FW, serial)
-- **Status bar** — WiFi, MQTT, and Printer connection indicators
+- **Printer AMS Cards** — all detected AMS units with tray grids
+- **Update Firmware** — one-click OTA from GitHub Releases
 
 ### Printer Config Tab
 - Printer IP, Port (default 8883), Access Code, Serial Number
-- **AMS Unit selector** (A/B/C/D) — selects which AMS unit to display
-- Printer AMS detection status with green/red indicators
-- MQTT enable/disable toggle and update interval
+- **AMS Unit selector** (A/B/C/D)
 
 ### WiFi Config Tab
 - SSID, Password, Device Name
-- Settings persist in NVS flash; auto-reboot after saving
 
 ## OLED Display (128x64)
 
 ```
 ┌──────────────────────────────────┐
-│ Device Name                WiFi │  ← status bar (white on black)
+│ Device Name                WiFi │
 ├──────────────────────────────────┤
-│ 1: PLA   #C0C0C0FF              │  ← AMS tray data (live from printer)
+│ 1: PLA   #C0C0C0FF              │  ← AMS tray data
 │ 2: empty                        │
 │ 3: empty                        │
 │ 4: empty                        │
 ├──────────────────────────────────┤
-│ MQTT:OK                   PTR:OK│  ← MQTT + Printer status
+│ MQTT:OK                   PTR:OK│
 └──────────────────────────────────┘
 ```
 
-- **MQTT connected + AMS detected**: shows printer tray data (type + color hex)
-- **No MQTT / AMS not detected**: falls back to RFID tag reader data
-- **Status bar**: device name left, WiFi status right-aligned
-- **Footer**: MQTT left, Printer right-aligned
+OTA progress shown on OLED: "Checking version..." → "Downloading... v1.0.1" → "Success! Rebooting..."
 
 ## Printer Communication
 
-Connects via MQTT (unsecure, port 8883).
-
 ### Subscribe
 - **Topic**: `device/<serial>/report`
-- **Data received**: `push_status` (periodic, ~3KB) and `get_version` responses
-- **Tray data**: parsed from `print.ams.ams[]` — type (PLA/PETG), material code (GFA00), color hex (RGBA)
-- **AMS detection**: parsed from `info.module[]` in `get_version` — module names like `n3f/0`
+- **Data**: `push_status` (periodic, ~3KB), `get_version` responses
 
 ### Publish
 - **Topic**: `device/<serial>/request`
-- **`get_version`** — discovers AMS units
-- **`pushall`** — requests full printer status
-- **`ams_filament_setting`** — sends scanned tag data: `tray_info_idx`, `tray_color`, `tray_type`, `remain`, `total`
+- **`ams_filament_setting`** — structure:
+  ```json
+  {
+    "print": {
+      "sequence_id": "0",
+      "command": "ams_filament_setting",
+      "ams_id": 0,
+      "tray_id": 0,
+      "tray_info_idx": "GFA00",
+      "tray_color": "RRGGBBFF",
+      "nozzle_temp_min": 190,
+      "nozzle_temp_max": 230,
+      "tray_type": "PLA"
+    }
+  }
+  ```
+- `tray_type` derived from filament index prefix (GFA→PLA, GFG→PETG, etc.)
+- `tray_color` forced to RRGGBBFF format
+- `nozzle_temp_min/max` from tag block 6
 
 ## Tag Format & Reading
 
@@ -159,26 +161,39 @@ Bambu Lab uses **MIFARE Classic 1K** tags with fixed block offsets:
 | 2 | Filament type short name |
 | 4 | Detailed type string (e.g. "PLA Basic") |
 | 5 | RGBA color (bytes 0-3) + spool weight LE (bytes 4-5) |
-| 6 | Temperature data |
+| 6 | Nozzle temps (bytes 8-11 LE) |
 
 ### Authentication
-- **HKDF-SHA256** derives 16 per-sector Key A / Key B pairs from the 4-byte UID
-- HKDF salt and info vectors match Bambu's firmware (reverse-engineered KDF)
-- Falls back to default key A/B (`0xFF...FF`) for blank sectors
-- Failed auth re-wakes the tag via antenna power-cycle (like BambuTagger-Touch)
-- Dead readers auto-skipped (detected via version register check)
-- SPI speed: 1 MHz via `MFRC522_SPI` with `SPISettings(1000000, MSBFIRST, SPI_MODE0)`
+- **HKDF-SHA256** derives 16 per-sector Key A/B from 4-byte UID
+- Bambu KDF salt/info vectors from reverse-engineered firmware
+- Falls back to default key `0xFF...FF` for blank sectors
+- Failed auth re-wakes tag via antenna power-cycle
+- Dead readers auto-skipped (version register check)
+- SPI: 1 MHz via `MFRC522_SPI`
 
-## LED Indicators
+### Filament Type Mapping
+| Prefix | Type |
+|--------|------|
+| GFA-GFE, GFL | PLA |
+| GFG | PETG |
+| GFH, GFI | ABS |
+| GFJ | ASA |
+| GFK | TPU |
 
-| State | LED Color |
-|-------|-----------|
-| Empty slot | Dim blue glow |
-| Tag detected, reading | Yellow |
-| Tag read, no color field | Green |
-| Tag read, color field present | **Actual filament color** |
-| AP mode / no WiFi | Dim blue (all slots) |
-| WiFi disconnected | Orange (all slots) |
+## OTA Updates
+
+- **Button**: "Update Firmware" on Status page
+- **Endpoint**: `POST /api/ota` triggers update
+- **Version check**: `GET /api/version` returns current version
+- Downloads latest `.bin` from GitHub Releases, flashes via `Update.h`
+- OLED shows "Checking version..." → "Downloading... v1.0.1" → "Success! Rebooting..."
+- Device auto-reboots after successful flash
+
+## CI / CD
+
+Workflow at `GHActions/release.yml`:
+- **On push/PR**: compiles sketch
+- **On release**: compiles and attaches `.bin` + `.elf` as release assets
 
 ## Configuration Defaults
 
@@ -194,15 +209,8 @@ Bambu Lab uses **MIFARE Classic 1K** tags with fixed block offsets:
 | AMS Unit | A (0) |
 | MQTT Enabled | No |
 | MQTT Update Interval | 5000 ms |
-| MQTT Topic Prefix | device |
 | RFID Poll Interval | 100 ms |
-
-## CI / CD
-
-GitHub Actions workflow at `.github/workflows/build.yml`:
-
-- **On push/PR to main**: compiles the sketch to verify it builds
-- **On release published**: compiles and attaches `.bin` + `.elf` as release assets
+| Firmware Version | 1.0.0 |
 
 ## License
 

@@ -4,7 +4,7 @@
  * Arduino IDE: ESP32 Dev Module (Tools > Board > ESP32 > ESP32 Dev Module)
  *
  * Required libraries (install via Tools > Manage Libraries):
- *   - MFRC522       by Miguel Balboa  (v1.4.11+)
+ *   - MFRC522-spi-i2c-uart-async
  *   - Adafruit NeoPixel by Adafruit    (v1.12.3+)
  *   - Adafruit GFX Library by Adafruit (v1.11.11+)
  *   - Adafruit SSD1306   by Adafruit   (v2.5.12+)
@@ -17,6 +17,8 @@
 #include <ESPmDNS.h>
 #include <WiFi.h>
 #include <DNSServer.h>
+#include <HTTPClient.h>
+#include <Update.h>
 
 #include "config.h"
 #include "rfid_manager.h"
@@ -47,7 +49,9 @@ void setup() {
   Serial.begin(115200);
   delay(1500);
   Serial.println();
-  Serial.println(F("=== BambuTagger AMS v1.0 ==="));
+  Serial.print(F("=== BambuTagger AMS v"));
+  Serial.print(FIRMWARE_VERSION);
+  Serial.println(F(" ==="));
   Serial.println(F("Multi-Spool NFC Tag Reader for Bambu Lab"));
 
   loadConfig(cfg);
@@ -71,7 +75,7 @@ void setup() {
     bambuPrinter.begin(cfg);
   }
 
-  webInterface.begin(cfg, &rfidManager, &bambuPrinter, handleReboot);
+  webInterface.begin(cfg, &rfidManager, &bambuPrinter, handleReboot, performOTAUpdate);
   if (wifiConnected) {
     Serial.println(F("Web server started on port 80"));
     Serial.println(localIP);
@@ -267,5 +271,126 @@ void updateLedStatus() {
 void handleReboot() {
   Serial.println(F("Reboot requested via web..."));
   delay(500);
+  ESP.restart();
+}
+
+void performOTAUpdate() {
+  displayManager.showMessage("OTA Update", "Checking version...");
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
+  String url = String("https://api.github.com/repos/") + OTA_REPO + "/releases/latest";
+  if (!http.begin(client, url)) {
+    displayManager.showMessage("OTA Update", "", "HTTP begin failed");
+    delay(3000);
+    return;
+  }
+  http.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
+
+  int code = http.GET();
+  if (code != 200) {
+    displayManager.showMessage("OTA Update", "", "GitHub API error");
+    delay(3000);
+    http.end();
+    return;
+  }
+
+  StaticJsonDocument<1024> doc;
+  DeserializationError err = deserializeJson(doc, http.getStream());
+  http.end();
+
+  if (err) {
+    displayManager.showMessage("OTA Update", "", "JSON parse error");
+    delay(3000);
+    return;
+  }
+
+  const char* tag = doc["tag_name"] | "";
+  if (!tag[0]) {
+    displayManager.showMessage("OTA Update", "", "No release found");
+    delay(3000);
+    return;
+  }
+
+  if (strcmp(tag, FIRMWARE_VERSION) == 0) {
+    displayManager.showMessage("OTA Update", "", "Already up to date");
+    delay(3000);
+    return;
+  }
+
+  JsonArray assets = doc["assets"];
+  if (!assets) {
+    displayManager.showMessage("OTA Update", "", "No assets");
+    delay(3000);
+    return;
+  }
+
+  String binUrl;
+  for (JsonObject asset : assets) {
+    const char* name = asset["name"] | "";
+    if (strstr(name, ".bin")) {
+      binUrl = asset["browser_download_url"] | "";
+      break;
+    }
+  }
+
+  if (!binUrl.length()) {
+    displayManager.showMessage("OTA Update", "", "No .bin found");
+    delay(3000);
+    return;
+  }
+
+  displayManager.showMessage("OTA Update", "Downloading...", tag);
+  if (!http.begin(client, binUrl)) {
+    displayManager.showMessage("OTA Update", "", "Download failed");
+    delay(3000);
+    return;
+  }
+  http.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
+
+  code = http.GET();
+  if (code != 200) {
+    displayManager.showMessage("OTA Update", "", "Download error");
+    delay(3000);
+    http.end();
+    return;
+  }
+
+  int len = http.getSize();
+  if (len <= 0) {
+    displayManager.showMessage("OTA Update", "", "Unknown size");
+    delay(3000);
+    http.end();
+    return;
+  }
+
+  if (!Update.begin(len)) {
+    displayManager.showMessage("OTA Update", "", "Update begin failed");
+    delay(3000);
+    http.end();
+    return;
+  }
+
+  size_t written = Update.writeStream(http.getStream());
+  http.end();
+
+  if (written != (size_t)len) {
+    displayManager.showMessage("OTA Update", "", "Write mismatch");
+    delay(3000);
+    return;
+  }
+
+  if (!Update.end()) {
+    displayManager.showMessage("OTA Update", "", "Update end failed");
+    delay(3000);
+    return;
+  }
+
+  displayManager.showMessage("OTA Update", "", "Success! Rebooting...");
+  delay(2000);
   ESP.restart();
 }

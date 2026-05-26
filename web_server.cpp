@@ -1,14 +1,17 @@
 #include <functional>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
 #include "web_server.h"
 #include "index_html.h"
 #include "favicon.h"
 
 void WebInterface::begin(SystemConfig &cfg, RfidManager* rfid, BambuPrinter* printer,
-                         void (*rebootCallback)(void)) {
+                         void (*rebootCallback)(void), void (*otaCallback)(void)) {
   config = &cfg;
   rfidManager = rfid;
   bambuPrinter = printer;
   rebootFn = rebootCallback;
+  otaFn = otaCallback;
 
   server = new WebServer(80);
   setupRoutes();
@@ -28,6 +31,9 @@ void WebInterface::setupRoutes() {
   server->on("/api/scan", HTTP_POST, std::bind(&WebInterface::handleScan, this));
   server->on("/api/send", HTTP_POST, std::bind(&WebInterface::handleSend, this));
   server->on("/api/sync", HTTP_POST, std::bind(&WebInterface::handleSync, this));
+  server->on("/api/ota", HTTP_POST, std::bind(&WebInterface::handleOta, this));
+  server->on("/api/ota-check", HTTP_GET, std::bind(&WebInterface::handleOtaCheck, this));
+  server->on("/api/version", HTTP_GET, std::bind(&WebInterface::handleVersion, this));
 }
 
 void WebInterface::handleClient() {
@@ -282,6 +288,64 @@ void WebInterface::handleSync() {
     doc["ok"] = false;
     doc["error"] = bambuPrinter ? "MQTT not connected" : "MQTT not configured";
   }
+  sendJsonResponse(doc);
+}
+
+void WebInterface::handleOtaCheck() {
+  DynamicJsonDocument doc(256);
+  doc["current"] = FIRMWARE_VERSION;
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  String url = String("https://api.github.com/repos/") + OTA_REPO + "/releases/latest";
+
+  if (!http.begin(client, url)) {
+    doc["error"] = "HTTP begin failed";
+    sendJsonResponse(doc);
+    return;
+  }
+  http.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
+
+  int code = http.GET();
+  if (code != 200) {
+    doc["error"] = "GitHub API error";
+    http.end();
+    sendJsonResponse(doc);
+    return;
+  }
+
+  StaticJsonDocument<512> relDoc;
+  DeserializationError err = deserializeJson(relDoc, http.getStream());
+  http.end();
+
+  if (err) {
+    doc["error"] = "JSON parse error";
+    sendJsonResponse(doc);
+    return;
+  }
+
+  const char* latest = relDoc["tag_name"] | "";
+  doc["latest"] = latest;
+  doc["newer"] = (latest[0] && strcmp(latest, FIRMWARE_VERSION) != 0);
+  sendJsonResponse(doc);
+}
+  DynamicJsonDocument doc(128);
+  doc["ok"] = true;
+  doc["message"] = "OTA update started";
+  sendJsonResponse(doc);
+
+  if (otaFn) {
+    delay(200);
+    otaFn();
+  }
+}
+
+void WebInterface::handleVersion() {
+  DynamicJsonDocument doc(128);
+  doc["version"] = FIRMWARE_VERSION;
+  doc["repo"] = OTA_REPO;
   sendJsonResponse(doc);
 }
 

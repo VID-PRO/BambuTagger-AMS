@@ -135,8 +135,8 @@ bool RfidManager::readNtag(uint8_t slot, SpoolInfo &info) {
   if (!reader->PICC_ReadCardSerial()) return false;
 
   MFRC522::PICC_Type piccType = reader->PICC_GetType(reader->uid.sak);
-  Serial.printf("Slot %d: tag type=%s (SAK=0x%02X)\n",
-                slot, reader->PICC_GetTypeName(piccType), reader->uid.sak);
+  // Serial.printf("Slot %d: tag type=%s (SAK=0x%02X)\n",
+  //               slot, reader->PICC_GetTypeName(piccType), reader->uid.sak);
 
   char uidStr[16];
   uint8_t uidLen = reader->uid.size;
@@ -171,13 +171,13 @@ bool RfidManager::readNtag(uint8_t slot, SpoolInfo &info) {
 
 bool RfidManager::authenticateAndRead(uint8_t slot, SpoolInfo &info, uint8_t* uid) {
   MFRC522* reader = mfrc522[slot];
-  Serial.printf("Slot %d: authenticateAndRead enter\n", slot);
+  // Serial.printf("Slot %d: authenticateAndRead enter\n", slot);
 
   uint8_t keysA[16][6], keysB[16][6];
   bambuDeriveKeys(uid, keysA, keysB);
 
-  Serial.printf("Slot %d: UID=%02X%02X%02X%02X\n", slot,
-                uid[0], uid[1], uid[2], uid[3]);
+  // Serial.printf("Slot %d: UID=%02X%02X%02X%02X\n", slot,
+  //               uid[0], uid[1], uid[2], uid[3]);
 
   MFRC522::MIFARE_Key keyDef;
   for (byte i = 0; i < 6; i++) keyDef.keyByte[i] = 0xFF;
@@ -257,9 +257,9 @@ authOk2:
     if (info.detailedType[i] == ' ' || info.detailedType[i] == '\0') info.detailedType[i] = '\0';
     else break;
   }
-  Serial.printf("Slot %d: block4 raw=", slot);
-  for (int i = 0; i < 16; i++) Serial.printf("%02X ", dataBuffer[4 * 16 + i]);
-  Serial.printf(" sub='%s'\n", info.detailedType);
+  // Serial.printf("Slot %d: block4 raw=", slot);
+  // for (int i = 0; i < 16; i++) Serial.printf("%02X ", dataBuffer[4 * 16 + i]);
+  // Serial.printf(" sub='%s'\n", info.detailedType);
 
   // Block 5 bytes 0-3 = RGBA → force alpha to FF for printer format
   snprintf(info.colorHex, sizeof(info.colorHex), "%02X%02X%02XFF",
