@@ -380,7 +380,7 @@ void performOTAUpdate() {
 
   int totalSize = (binSize > 0) ? binSize : http.getSize();
   if (!Update.begin((totalSize > 0) ? (size_t)totalSize : UPDATE_SIZE_UNKNOWN)) {
-    displayManager.showOtaProgress("OTA Update", "", "Flash w/OTA scheme?");
+    displayManager.showOtaProgress("OTA Update", "", "Update begin failed");
     delay(3000);
     http.end();
     return;

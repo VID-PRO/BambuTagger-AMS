@@ -68,6 +68,17 @@ color:#fff;font-size:14px;opacity:0;transition:opacity .3s;z-index:1000}
 footer{position:fixed;bottom:0;left:0;right:0;text-align:center;padding:6px;
 font-size:10px;color:#484f58;background:#0d1117;border-top:1px solid #30363d}
 body{padding-bottom:28px}
+#otaOverlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+background:rgba(0,0,0,0.85);z-index:9999;flex-direction:column;
+justify-content:center;align-items:center;gap:16px}
+#otaOverlay.active{display:flex}
+#otaOverlay .spinner{width:48px;height:48px;border:4px solid #30363d;
+border-top-color:#58a6ff;border-radius:50%;animation:spin .8s linear infinite}
+#otaOverlay .msg{color:#c9d1d9;font-size:16px}
+#otaOverlay .sub{color:#8b949e;font-size:13px}
+#otaOverlay .bar{width:240px;height:8px;background:#30363d;border-radius:4px;overflow:hidden}
+#otaOverlay .barFill{height:100%;background:#238636;transition:width .3s}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -267,14 +278,27 @@ var b=document.getElementById('otaBtn');
 if(b.textContent.indexOf('up to date')>=0)return;
 if(!confirm('Update firmware from GitHub? Device will reboot.'))return;
 b.disabled=true;b.textContent='Updating...';b.className='btn btn-secondary';
+var ov=document.getElementById('otaOverlay');
+ov.classList.add('active');
+document.getElementById('otaOverlaySub').textContent='Downloading...';
+var bar=document.getElementById('otaBar');
+bar.style.width='10%';
 fetch('/api/ota',{method:'POST'}).then(function(r){return r.json()})
 .then(function(d){
-showToast(d.message||'Update started, rebooting...',d.ok);
-var check=setInterval(function(){
-fetch('/api/version').then(function(){clearInterval(check);location.reload()})
-.catch(function(){})},3000);
+  document.getElementById('otaOverlaySub').textContent='Flashing...';
+  bar.style.width='40%';
+  var pct=40;
+  var sim=setInterval(function(){pct+=2;if(pct>90)pct=90;bar.style.width=pct+'%'},500);
+  var check=setInterval(function(){
+    fetch('/api/version').then(function(){
+      clearInterval(sim);clearInterval(check);
+      bar.style.width='100%';
+      document.getElementById('otaOverlaySub').textContent='Rebooting...';
+      setTimeout(function(){location.reload()},2000);
+    }).catch(function(){})
+  },3000);
 })
-.catch(function(){showToast('OTA failed',false);b.disabled=false})}
+.catch(function(){ov.classList.remove('active');b.disabled=false;showToast('OTA failed',false)})}
 
 function checkOta(){
 fetch('/api/ota-check').then(function(r){return r.json()}).then(function(v){
@@ -323,6 +347,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
 document.getElementById('fwVersion').textContent='v'+v.version})
 checkOta()
 </script>
+<div id="otaOverlay"><div class="spinner"></div><div class="msg">Installing update...</div><div class="sub" id="otaOverlaySub"></div><div class="bar"><div class="barFill" id="otaBar" style="width:0%"></div></div></div>
 <footer>&copy; 2026 by <a href="https://www.vid-pro.de" target="_blank" style="color:#484f58;text-decoration:none" onmouseover="this.style.color='#c9d1d9'" onmouseout="this.style.color='#484f58'">VID-PRO</a></footer>
 </body>
 </html>
