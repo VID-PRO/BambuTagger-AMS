@@ -1,7 +1,10 @@
-# BambuTagger AMS
+# <img alt="logo" src="Logo/bambutagger.png" height="36" />  BambuTagger-AMS
 
 Multi-spool NFC tag reader for Bambu Lab printers. Reads 4 Bambu Lab filament spool tags via RC522, displays live printer AMS tray data over MQTT, and sends RFID tag data back to the printer. Fully configurable via web interface with automatic AP fallback.
 
+<img alt="atatus" src="Pics/status.png" width="800" />    
+<img alt="printer" src="Pics/printer.png" width="800" />
+    
 ## Features
 
 - **4x RC522** on shared SPI bus polling MIFARE Classic 1K spool tags
