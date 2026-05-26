@@ -22,7 +22,7 @@ public:
   void showMessage(const char* line1, const char* line2 = nullptr,
                    const char* line3 = nullptr, const char* line4 = nullptr);
   void showOtaProgress(const char* line1, const char* line2 = nullptr,
-                       const char* line3 = nullptr);
+                       const char* line3 = nullptr, int pct = -1);
   void showBootScreen();
 
 private:

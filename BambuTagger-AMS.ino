@@ -373,23 +373,37 @@ void performOTAUpdate() {
   if (len <= 0) len = UPDATE_SIZE_UNKNOWN;
 
   if (!Update.begin(len)) {
-    Serial.printf("OTA: begin failed: %s\n", Update.errorString());
+    Serial.printf("OTA: Update.begin failed: %s\n", Update.errorString());
     displayManager.showOtaProgress("OTA Update", "", "Update begin failed");
     delay(3000);
     http.end();
     return;
   }
 
-  size_t written = Update.writeStream(http.getStream());
+  WiFiClient* stream = http.getStreamPtr();
+  uint8_t buf[1024];
+  size_t total = 0;
+  int lastPct = -1;
+  while (stream->connected() || stream->available()) {
+    size_t avail = stream->available();
+    if (avail == 0) { delay(2); continue; }
+    if (avail > sizeof(buf)) avail = sizeof(buf);
+    int r = stream->read(buf, avail);
+    if (r <= 0) break;
+    Update.write(buf, r);
+    total += r;
+    int pct = len > 0 ? (total * 100 / len) : -1;
+    if (pct != lastPct) {
+      lastPct = pct;
+      displayManager.showOtaProgress("OTA Update", "Downloading...", tag, pct);
+    }
+  }
   http.end();
 
-  if (written != (size_t)len) {
-    displayManager.showOtaProgress("OTA Update", "", "Write mismatch");
-    delay(3000);
-    return;
-  }
+  Serial.printf("OTA: written=%d\n", total);
 
   if (!Update.end()) {
+    Serial.printf("OTA: Update.end failed: %s\n", Update.errorString());
     displayManager.showOtaProgress("OTA Update", "", "Update end failed");
     delay(3000);
     return;
