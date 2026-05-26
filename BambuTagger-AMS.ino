@@ -332,7 +332,7 @@ void performOTAUpdate() {
   String binUrl;
   for (JsonObject asset : assets) {
     const char* name = asset["name"] | "";
-    if (strstr(name, ".bin")) {
+    if (strstr(name, ".ino.bin")) {
       binUrl = asset["browser_download_url"] | "";
       break;
     }
