@@ -78,6 +78,10 @@ void WebInterface::handleStatus() {
         tray["material"] = bambuPrinter->getAmsTrayMaterial(a, t);
         tray["trayType"] = bambuPrinter->getAmsTrayType(a, t);
         tray["color"] = bambuPrinter->getAmsTrayColor(a, t);
+        SpoolInfo tagInfo;
+        if (rfidManager->getSpoolInfo(t, tagInfo) && tagInfo.present) {
+          tray["sub"] = tagInfo.detailedType;
+        }
       }
     }
   }
@@ -92,6 +96,7 @@ void WebInterface::handleStatus() {
     slot["present"] = present || info.present;
     slot["uid"] = info.uid;
     slot["materialType"] = info.materialType;
+    slot["detailedType"] = info.detailedType;
     slot["color"] = info.color;
     slot["colorHex"] = info.colorHex;
     slot["remainingGrams"] = info.remainingGrams;

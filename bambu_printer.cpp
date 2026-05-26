@@ -110,18 +110,23 @@ void BambuPrinter::sendSpoolData(uint8_t slot, const SpoolInfo &info) {
   }
   char payload[512];
   snprintf(payload, sizeof(payload),
-           "{\"print\":{\"command\":\"ams_filament_setting\","
+           "{\"print\":{"
            "\"sequence_id\":\"%lu\","
+           "\"command\":\"ams_filament_setting\","
            "\"ams_id\":%d,"
            "\"tray_id\":%d,"
            "\"tray_info_idx\":\"%s\","
            "\"tray_color\":\"%s\","
+           "\"nozzle_temp_min\":%d,"
+           "\"nozzle_temp_max\":%d,"
            "\"tray_type\":\"%s\"}}",
            millis(),
            config.amsUnit,
            (slot % 4),
            info.materialType,
            info.colorHex,
+           info.nozzleTempMin,
+           info.nozzleTempMax,
            ttype);
 
   char topic[128];

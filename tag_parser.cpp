@@ -4,10 +4,13 @@ void TagParser::clear(SpoolInfo &info) {
   info.present = false;
   info.uid[0] = '\0';
   info.materialType[0] = '\0';
+  info.detailedType[0] = '\0';
   info.color[0] = '\0';
   info.colorHex[0] = '\0';
   info.remainingGrams = 0;
   info.totalGrams = 0;
+  info.nozzleTempMin = 0;
+  info.nozzleTempMax = 0;
   info.batchNumber[0] = '\0';
   info.manufacturer[0] = '\0';
   info.tagReadSuccess = false;

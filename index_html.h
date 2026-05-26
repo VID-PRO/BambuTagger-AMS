@@ -166,35 +166,34 @@ return'led-yellow'
 function updateSlots(data){
 var g=document.getElementById('slotGrid'),h='';
 var ps=data.printerSlots||[];
-var amsLabels={0:'A',1:'B',2:'C',3:'D'};
+// index scanned tags by slot
+var tagBySlot={};
+for(var i=0;i<data.slots.length;i++){ var s=data.slots[i]; if(s.present) tagBySlot[s.slot]=s; }
 for(var i=0;i<ps.length;i++){
 var p=ps[i];
+var t=tagBySlot[i];
+var hasSpool=p.hasSpool;
+var showColor=t&&t.colorHex?t.colorHex:(p.hasSpool&&p.color?p.color.substring(0,6):null);
 h+='<div class="slot">';
-h+='<div class="slot-title"><span class="led '+getPrinterLedClass(p)+'"></span>AMS Slot '+(i+1)+'</div>';
+h+='<div class="slot-title"><span class="led '+(p.hasSpool?'led-green':'led-yellow')+'"></span>Slot '+(i+1)+'</div>';
 h+='<div style="display:flex;align-items:center;gap:8px">';
 h+='<div class="slot-detail" style="flex:1">';
 if(p.hasSpool){
 h+='Type: '+p.trayType+'<br>';
+var sub = (t&&t.detailedType&&t.detailedType.length>0)?t.detailedType:p.trayType;
+h+='Sub: '+sub+'<br>';
 h+='Material: '+p.material+'<br>';
 h+='Color: '+p.color;
-}else{h+='No spool detected'}
+}else{h+='AMS: empty'}
+if(t){
+h+='<br><span style="color:#58a6ff">Tag: ';
+if(t.detailedType&&t.detailedType.length>0)h+=t.detailedType+' - ';
+h+=t.materialType+'</span>';
+h+=' &middot; '+t.colorHex;
+if(t.totalGrams>0)h+=' &middot; '+t.remainingGrams+'g/'+t.totalGrams+'g';
+}
 h+='</div>';
-if(p.hasSpool&&p.color)h+='<div style="width:36px;height:36px;border-radius:4px;background:#'+p.color.substring(0,6)+';flex-shrink:0;border:1px solid #484f58"></div>';
-h+='</div></div>'}
-// RFID tag slots
-for(var i=0;i<data.slots.length;i++){
-var s=data.slots[i];
-if(!s.present)continue;
-h+='<div class="slot">';
-h+='<div class="slot-title"><span class="led '+getLedClass(s)+'"></span>Tag Slot '+(i+1)+'</div>';
-h+='<div style="display:flex;align-items:center;gap:8px">';
-h+='<div class="slot-detail" style="flex:1">';
-h+='UID: '+s.uid+'<br>';
-h+='Material: '+s.materialType+'<br>';
-h+='Color: '+s.color+' ('+s.colorHex+')';
-if(s.totalGrams>0)h+='<br>'+s.remainingGrams+'g / '+s.totalGrams+'g';
-h+='</div>';
-if(s.colorHex)h+='<div style="width:36px;height:36px;border-radius:4px;background:#'+s.colorHex+';flex-shrink:0;border:1px solid #484f58"></div>';
+if(showColor)h+='<div style="width:36px;height:36px;border-radius:4px;background:#'+showColor+';flex-shrink:0;border:1px solid #484f58"></div>';
 h+='</div></div>'}
 g.innerHTML=h;
 document.getElementById('wifiStatus').textContent='WiFi: '+(data.wifiConnected?'Connected':'Disconnected');
@@ -219,8 +218,12 @@ for(var t=0;t<u.trays.length;t++){
 var tr=u.trays[t];
 var hasSpool=tr.trayType&&tr.trayType.length>0;
 printerHtml+='<div style="border:1px solid #30363d;border-radius:4px;padding:8px;font-size:12px;display:flex;align-items:center;gap:6px">';
-if(hasSpool&&tr.color){printerHtml+='<span style="width:14px;height:14px;border-radius:3px;background:#'+tr.color.substring(0,6)+';flex-shrink:0;border:1px solid #484f58"></span>'}
-printerHtml+='SLOT'+(t+1)+': '+(hasSpool?('<span style="color:#3fb950">'+tr.trayType+'</span>'):'<span style="color:#8b949e">empty</span>');
+printerHtml+='<span style="flex:1">SLOT'+(t+1)+': '+(hasSpool?('<span style="color:#3fb950">'+tr.trayType+'</span>'):'<span style="color:#8b949e">empty</span>');
+if(hasSpool&&tr.material&&tr.material.length>0)printerHtml+=' <span style="color:#8b949e;font-size:10px">'+tr.material+'</span>';
+var st=tagBySlot[t];
+if(st&&st.detailedType&&st.detailedType.length>0)printerHtml+=' <span style="color:#58a6ff;font-size:10px">('+st.detailedType+')</span>';
+printerHtml+='</span>';
+if(hasSpool&&tr.color){printerHtml+='<span style="width:24px;height:24px;border-radius:4px;background:#'+tr.color.substring(0,6)+';flex-shrink:0;border:1px solid #484f58"></span>'}
 printerHtml+='</div>'}
 printerHtml+='</div></div>'}
 document.getElementById('printerAmsCards').innerHTML=printerHtml||'<span style="color:#8b949e">No AMS data — click Sync From Printer</span>';
