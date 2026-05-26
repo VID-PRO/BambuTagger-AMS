@@ -69,7 +69,7 @@ void RfidManager::begin() {
     mfrc522[i]->PCD_Init();
 
     byte ver = mfrc522[i]->PCD_ReadRegister(MFRC522::VersionReg);
-    readerOk[i] = (ver == 0x92 || ver == 0x91);
+    readerOk[i] = (ver == 0x92 || ver == 0x91 || ver == 0xB2);
     Serial.printf("  Slot %d SS=%d RST=%d ver=0x%02X %s\n", i,
                   SS_PINS[i], RST_PINS[i], ver,
                   readerOk[i] ? "OK" : "FAIL");
