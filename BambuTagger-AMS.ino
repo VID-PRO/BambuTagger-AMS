@@ -377,14 +377,17 @@ void performOTAUpdate() {
     int written = 0;
     unsigned long lastDraw = 0;
     unsigned long startWait = millis();
+    unsigned long stallSince = millis();
 
     while (http.connected() && (totalSize <= 0 || written < totalSize)) {
       int avail = stream->available();
       if (!avail) {
-        if (written == 0 && millis() - startWait > 15000) { http.end(); Update.abort(); break; }
+        if (millis() - startWait > 10000) { break; }
+        if (written > 0 && millis() - stallSince > 5000) { break; }
         delay(2); continue;
       }
       startWait = millis();
+      stallSince = millis();
       int n = stream->readBytes(buf, min(avail, (int)sizeof(buf)));
       if (n <= 0) break;
       if (Update.write(buf, n) != (size_t)n) {
