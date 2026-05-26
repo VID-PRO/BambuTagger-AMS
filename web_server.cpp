@@ -331,6 +331,7 @@ void WebInterface::handleOtaCheck() {
   doc["newer"] = (latest[0] && strcmp(latest, FIRMWARE_VERSION) != 0);
   sendJsonResponse(doc);
 }
+void WebInterface::handleOta() {
   DynamicJsonDocument doc(128);
   doc["ok"] = true;
   doc["message"] = "OTA update started";
