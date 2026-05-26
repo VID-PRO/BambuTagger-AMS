@@ -32,57 +32,7 @@ jobs:
 
       - name: Install libraries
         run: |
-          arduino-cli lib install MFRC522
-          arduino-cli lib install "Adafruit NeoPixel"
-          arduino-cli lib install "Adafruit GFX Library"
-          arduino-cli lib install "Adafruit SSD1306"
-          arduino-cli lib install PubSubClient
-          arduino-cli lib install ArduinoJson
-
-      - name: Compile sketch
-        uses: arduino/compile-sketches@v1
-        with:
-          fqbn: ${{ matrix.board.fqbn }}
-          platforms: |
-            - ${{ matrix.board.platform }}
-          libraries: |
-            - MFRC522
-            - Adafruit NeoPixel
-            - Adafruit GFX Library
-            - Adafruit SSD1306
-            - PubSubClient
-            - ArduinoJson
-          sketch-paths: |
-            - .
-          enable-deltas-report: true
-          enable-size-deltas-report: true
-
-  release:
-    needs: build
-    if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        board:
-          - fqbn: esp32:esp32:esp32
-            name: ESP32-Dev-Module
-            platform: esp32:esp32
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Arduino CLI
-        uses: arduino/setup-arduino-cli@v2
-
-      - name: Install ESP32 board platform
-        run: |
-          arduino-cli core update-index
-          arduino-cli core install ${{ matrix.board.platform }}
-
-      - name: Install libraries
-        run: |
-          arduino-cli lib install MFRC522
+          arduino-cli lib install MFRC522-spi-i2c-uart-async
           arduino-cli lib install "Adafruit NeoPixel"
           arduino-cli lib install "Adafruit GFX Library"
           arduino-cli lib install "Adafruit SSD1306"
