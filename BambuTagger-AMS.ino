@@ -299,8 +299,16 @@ void performOTAUpdate() {
     return;
   }
 
-  StaticJsonDocument<1024> doc;
-  DeserializationError err = deserializeJson(doc, http.getStream());
+  StaticJsonDocument<96> filter;
+  filter["tag_name"] = true;
+  JsonArray fa = filter.createNestedArray("assets");
+  JsonObject fa0 = fa.createNestedObject();
+  fa0["name"]                 = true;
+  fa0["browser_download_url"] = true;
+  fa0["size"]                 = true;
+
+  DynamicJsonDocument doc(8192);
+  DeserializationError err = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
   http.end();
 
   if (err) {
@@ -316,7 +324,6 @@ void performOTAUpdate() {
     return;
   }
 
-  // Compare versions numerically
   const char* r = tag;
   if (r[0] == 'v' || r[0] == 'V') r++;
   const char* l = FIRMWARE_VERSION;
@@ -338,10 +345,13 @@ void performOTAUpdate() {
   }
 
   String binUrl;
+  int binSize = 0;
   for (JsonObject asset : assets) {
     const char* name = asset["name"] | "";
-    if (strstr(name, ".ino.bin")) {
+    if (strstr(name, ".bin") && !strstr(name, "merged") &&
+        !strstr(name, "bootloader") && !strstr(name, "partition")) {
       binUrl = asset["browser_download_url"] | "";
+      binSize = asset["size"] | 0;
       break;
     }
   }
@@ -368,47 +378,46 @@ void performOTAUpdate() {
     return;
   }
 
-  int len = http.getSize();
-  Serial.printf("OTA: download size=%d\n", len);
-  if (len <= 0) len = UPDATE_SIZE_UNKNOWN;
-
-  if (!Update.begin(len)) {
-    Serial.printf("OTA: Update.begin failed: %s\n", Update.errorString());
-    displayManager.showOtaProgress("OTA Update", "", "Update begin failed");
+  int totalSize = (binSize > 0) ? binSize : http.getSize();
+  if (!Update.begin((totalSize > 0) ? (size_t)totalSize : UPDATE_SIZE_UNKNOWN)) {
+    displayManager.showOtaProgress("OTA Update", "", "Flash w/OTA scheme?");
     delay(3000);
     http.end();
     return;
   }
 
   WiFiClient* stream = http.getStreamPtr();
-  uint8_t buf[1024];
-  size_t total = 0;
-  int lastPct = -1;
-  while (stream->connected() || stream->available()) {
-    size_t avail = stream->available();
-    if (avail == 0) { delay(2); continue; }
-    if (avail > sizeof(buf)) avail = sizeof(buf);
-    int r = stream->read(buf, avail);
-    if (r <= 0) break;
-    Update.write(buf, r);
-    total += r;
-    int pct = len > 0 ? (total * 100 / len) : -1;
-    if (pct != lastPct) {
-      lastPct = pct;
-      displayManager.showOtaProgress("OTA Update", "Downloading...", tag, pct);
+  uint8_t buf[512];
+  int written = 0;
+  unsigned long lastDraw = 0;
+
+  while (http.connected() && (totalSize <= 0 || written < totalSize)) {
+    int avail = stream->available();
+    if (!avail) { delay(2); continue; }
+    int n = stream->readBytes(buf, ((size_t)avail < sizeof(buf)) ? avail : sizeof(buf));
+    if (n <= 0) break;
+    if (Update.write(buf, n) != (size_t)n) {
+      http.end(); Update.abort();
+      displayManager.showOtaProgress("OTA Update", "", "Write error");
+      delay(3000);
+      return;
+    }
+    written += n;
+    if (millis() - lastDraw > 200) {
+      int pct = (totalSize > 0) ? (written * 100 / totalSize) : 50;
+      displayManager.showOtaProgress("OTA Update", "Flashing...", tag, pct);
+      lastDraw = millis();
     }
   }
   http.end();
 
-  Serial.printf("OTA: written=%d\n", total);
-
-  if (!Update.end()) {
-    Serial.printf("OTA: Update.end failed: %s\n", Update.errorString());
+  if (!Update.end(true)) {
     displayManager.showOtaProgress("OTA Update", "", "Update end failed");
     delay(3000);
     return;
   }
 
+  // Update.end(true) reboots — we only get here on failure
   displayManager.showOtaProgress("OTA Update", "", "Success! Rebooting...");
   delay(2000);
   ESP.restart();
