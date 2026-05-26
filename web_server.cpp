@@ -328,7 +328,20 @@ void WebInterface::handleOtaCheck() {
 
   const char* latest = relDoc["tag_name"] | "";
   doc["latest"] = latest;
-  doc["newer"] = (latest[0] && strcmp(latest, FIRMWARE_VERSION) != 0);
+
+  // Compare versions numerically (strip leading 'v')
+  const char* r = latest;
+  if (r[0] == 'v' || r[0] == 'V') r++;
+  const char* l = FIRMWARE_VERSION;
+  if (l[0] == 'v' || l[0] == 'V') l++;
+
+  int rMaj = 0, rMin = 0, rPat = 0, lMaj = 0, lMin = 0, lPat = 0;
+  sscanf(r, "%d.%d.%d", &rMaj, &rMin, &rPat);
+  sscanf(l, "%d.%d.%d", &lMaj, &lMin, &lPat);
+
+  int rVer = rMaj * 10000 + rMin * 100 + rPat;
+  int lVer = lMaj * 10000 + lMin * 100 + lPat;
+  doc["newer"] = (latest[0] != '\0' && rVer > lVer);
   sendJsonResponse(doc);
 }
 void WebInterface::handleOta() {
