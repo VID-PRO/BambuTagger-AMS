@@ -1,0 +1,102 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        board:
+          - fqbn: esp32:esp32:esp32
+            name: ESP32-Dev-Module
+            platform: esp32:esp32
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 board platform
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install ${{ matrix.board.platform }}
+
+      - name: Install libraries
+        run: |
+          arduino-cli lib install MFRC522
+          arduino-cli lib install "Adafruit NeoPixel"
+          arduino-cli lib install "Adafruit GFX Library"
+          arduino-cli lib install "Adafruit SSD1306"
+          arduino-cli lib install PubSubClient
+          arduino-cli lib install ArduinoJson
+
+      - name: Compile sketch
+        uses: arduino/compile-sketches@v1
+        with:
+          fqbn: ${{ matrix.board.fqbn }}
+          platforms: |
+            - ${{ matrix.board.platform }}
+          libraries: |
+            - MFRC522
+            - Adafruit NeoPixel
+            - Adafruit GFX Library
+            - Adafruit SSD1306
+            - PubSubClient
+            - ArduinoJson
+          sketch-paths: |
+            - .
+          enable-deltas-report: true
+          enable-size-deltas-report: true
+
+  release:
+    needs: build
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        board:
+          - fqbn: esp32:esp32:esp32
+            name: ESP32-Dev-Module
+            platform: esp32:esp32
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 board platform
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install ${{ matrix.board.platform }}
+
+      - name: Install libraries
+        run: |
+          arduino-cli lib install MFRC522
+          arduino-cli lib install "Adafruit NeoPixel"
+          arduino-cli lib install "Adafruit GFX Library"
+          arduino-cli lib install "Adafruit SSD1306"
+          arduino-cli lib install PubSubClient
+          arduino-cli lib install ArduinoJson
+
+      - name: Compile release binaries
+        run: |
+          arduino-cli compile --fqbn ${{ matrix.board.fqbn }} .
+          mkdir -p release
+          cp build/${{ matrix.board.fqbn }}/BambuTagger-AMS.ino.bin release/BambuTagger-AMS-${{ matrix.board.name }}.bin
+          cp build/${{ matrix.board.fqbn }}/BambuTagger-AMS.ino.elf release/BambuTagger-AMS-${{ matrix.board.name }}.elf
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
