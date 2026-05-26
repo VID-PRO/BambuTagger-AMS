@@ -137,7 +137,7 @@ void DisplayManager::showOtaProgress(const char* line1, const char* line2,
     int barW = SCREEN_WIDTH - 8;
     display->drawRect(2, barY, barW + 4, 6, SSD1306_WHITE);
     if (pct > 0) display->fillRect(4, barY + 1, (barW * pct) / 100, 4, SSD1306_WHITE);
-    display->setCursor(SCREEN_WIDTH - 30, barY + 8);
+    display->setCursor(SCREEN_WIDTH / 2 - 12, barY + 8);
     display->printf("%d%%", pct);
   }
   drawFooter(false, false);

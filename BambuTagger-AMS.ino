@@ -351,48 +351,60 @@ void performOTAUpdate() {
 
   displayManager.showOtaProgress("OTA Update", "Downloading...", tag.c_str());
 
-  http.begin(client, dlUrl);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
-  code = http.GET();
-  if (code != 200) { http.end(); return; }
+  for (int retry = 0; retry < 3; retry++) {
+    if (retry > 0) {
+      Serial.printf("OTA: retry %d/3\n", retry);
+      displayManager.showOtaProgress("OTA Update", "Retrying...", tag.c_str(), 0);
+      delay(2000);
+    }
 
-  int totalSize = (binSize > 0) ? binSize : http.getSize();
-  if (!Update.begin((totalSize > 0) ? (size_t)totalSize : UPDATE_SIZE_UNKNOWN)) {
-    http.end();
-    displayManager.showOtaProgress("OTA Update", "", "Update begin failed");
-    delay(3000);
-    return;
-  }
+    http.begin(client, dlUrl);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
+    code = http.GET();
+    if (code != 200) { http.end(); continue; }
 
-  WiFiClient* stream = http.getStreamPtr();
-  uint8_t buf[512];
-  int written = 0;
-  unsigned long lastDraw = 0;
-
-  while (http.connected() && (totalSize <= 0 || written < totalSize)) {
-    int avail = stream->available();
-    if (!avail) { delay(2); continue; }
-    int n = stream->readBytes(buf, min(avail, (int)sizeof(buf)));
-    if (n <= 0) break;
-    if (Update.write(buf, n) != (size_t)n) {
-      http.end(); Update.abort();
-      displayManager.showOtaProgress("OTA Update", "", "Write error");
+    int totalSize = (binSize > 0) ? binSize : http.getSize();
+    if (!Update.begin((totalSize > 0) ? (size_t)totalSize : UPDATE_SIZE_UNKNOWN)) {
+      http.end();
+      displayManager.showOtaProgress("OTA Update", "", "Update begin failed");
       delay(3000);
       return;
     }
-    written += n;
-    if (millis() - lastDraw > 200) {
-      int pct = (totalSize > 0) ? (written * 100 / totalSize) : 50;
-      displayManager.showOtaProgress("OTA Update", "Flashing...", tag.c_str(), pct);
-      lastDraw = millis();
-    }
-  }
-  http.end();
 
-  if (!Update.end(true)) {
-    displayManager.showOtaProgress("OTA Update", "", "Update end failed");
-    delay(5000);
-    return;
+    WiFiClient* stream = http.getStreamPtr();
+    uint8_t buf[512];
+    int written = 0;
+    unsigned long lastDraw = 0;
+    unsigned long startWait = millis();
+
+    while (http.connected() && (totalSize <= 0 || written < totalSize)) {
+      int avail = stream->available();
+      if (!avail) {
+        if (written == 0 && millis() - startWait > 15000) { http.end(); Update.abort(); break; }
+        delay(2); continue;
+      }
+      startWait = millis();
+      int n = stream->readBytes(buf, min(avail, (int)sizeof(buf)));
+      if (n <= 0) break;
+      if (Update.write(buf, n) != (size_t)n) {
+        http.end(); Update.abort(); break;
+      }
+      written += n;
+      if (millis() - lastDraw > 200) {
+        int pct = (totalSize > 0) ? (written * 100 / totalSize) : 50;
+        displayManager.showOtaProgress("OTA Update", "Flashing...", tag.c_str(), pct);
+        lastDraw = millis();
+      }
+    }
+    http.end();
+
+    if (written >= totalSize && Update.end(true)) {
+      return; // success, device reboots
+    }
+    Update.abort();
   }
+
+  displayManager.showOtaProgress("OTA Update", "", "Update failed");
+  delay(5000);
 }
