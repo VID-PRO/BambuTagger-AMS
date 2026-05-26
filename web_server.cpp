@@ -316,8 +316,11 @@ void WebInterface::handleOtaCheck() {
     return;
   }
 
-  StaticJsonDocument<512> relDoc;
-  DeserializationError err = deserializeJson(relDoc, http.getStream());
+  StaticJsonDocument<64> filter;
+  filter["tag_name"] = true;
+
+  DynamicJsonDocument doc2(512);
+  DeserializationError err = deserializeJson(doc2, http.getStream(), DeserializationOption::Filter(filter));
   http.end();
 
   if (err) {
@@ -326,7 +329,7 @@ void WebInterface::handleOtaCheck() {
     return;
   }
 
-  const char* latest = relDoc["tag_name"] | "";
+  const char* latest = doc2["tag_name"] | "";
   doc["latest"] = latest;
 
   // Compare versions numerically (strip leading 'v')
