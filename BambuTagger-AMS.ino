@@ -155,8 +155,9 @@ void loop() {
           SpoolInfo info;
           if (rfidManager.getSpoolInfo(i, info) && info.present && info.tagReadSuccess) {
             bambuPrinter.sendSpoolData(i, info);
-   }
- }
+  }
+}
+}
 }
 }
 }
@@ -394,133 +395,4 @@ void performOTAUpdate() {
     delay(5000);
     return;
   }
-}
-  http.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
-
-  int code = http.GET();
-  if (code != 200) {
-    displayManager.showOtaProgress("OTA Update", "", "GitHub API error");
-    delay(3000);
-    http.end();
-    return;
-  }
-
-  StaticJsonDocument<96> filter;
-  filter["tag_name"] = true;
-  JsonArray fa = filter.createNestedArray("assets");
-  JsonObject fa0 = fa.createNestedObject();
-  fa0["name"]                 = true;
-  fa0["browser_download_url"] = true;
-  fa0["size"]                 = true;
-
-  DynamicJsonDocument doc(8192);
-  DeserializationError err = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
-  http.end();
-
-  if (err) {
-    displayManager.showOtaProgress("OTA Update", "", "JSON parse error");
-    delay(3000);
-    return;
-  }
-
-  const char* tag = doc["tag_name"] | "";
-  if (!tag[0]) {
-    displayManager.showOtaProgress("OTA Update", "", "No release found");
-    delay(3000);
-    return;
-  }
-
-  const char* r = tag;
-  if (r[0] == 'v' || r[0] == 'V') r++;
-  const char* l = FIRMWARE_VERSION;
-  if (l[0] == 'v' || l[0] == 'V') l++;
-  int rMaj = 0, rMin = 0, rPat = 0, lMaj = 0, lMin = 0, lPat = 0;
-  sscanf(r, "%d.%d.%d", &rMaj, &rMin, &rPat);
-  sscanf(l, "%d.%d.%d", &lMaj, &lMin, &lPat);
-  if (rMaj * 10000 + rMin * 100 + rPat <= lMaj * 10000 + lMin * 100 + lPat) {
-    displayManager.showOtaProgress("OTA Update", "", "Already up to date");
-    delay(3000);
-    return;
-  }
-
-  JsonArray assets = doc["assets"];
-  if (!assets) {
-    displayManager.showOtaProgress("OTA Update", "", "No assets");
-    delay(3000);
-    return;
-  }
-
-  String binUrl;
-  int binSize = 0;
-  for (JsonObject asset : assets) {
-    const char* name = asset["name"] | "";
-    if (strstr(name, ".bin") && !strstr(name, "merged") &&
-        !strstr(name, "bootloader") && !strstr(name, "partition")) {
-      binUrl = asset["browser_download_url"] | "";
-      binSize = asset["size"] | 0;
-      break;
-    }
-  }
-
-  if (!binUrl.length()) {
-    displayManager.showOtaProgress("OTA Update", "", "No .bin found");
-    delay(3000);
-    return;
-  }
-
-  displayManager.showOtaProgress("OTA Update", "Downloading...", tag);
-  http.begin(client, binUrl);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setTimeout(60000);
-  http.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
-
-  code = http.GET();
-  int totalSize = (binSize > 0) ? binSize : http.getSize();
-  if (code != 200) {
-    displayManager.showOtaProgress("OTA Update", "", "Download error");
-    delay(3000);
-    http.end();
-    return;
-  }
-
-  delay(100); // let stream buffer fill
-
-  if (!Update.begin((totalSize > 0) ? (size_t)totalSize : UPDATE_SIZE_UNKNOWN)) {
-    displayManager.showOtaProgress("OTA Update", "", "Update begin failed");
-    delay(3000);
-    http.end();
-    return;
-  }
-
-  WiFiClient& stream = http.getStream();
-  uint8_t buf[512];
-  int written = 0;
-  unsigned long lastDraw = 0;
-
-  while (http.connected() && (totalSize <= 0 || written < totalSize)) {
-    int avail = stream.available();
-    if (!avail) { delay(2); continue; }
-    int n = stream.read(buf, ((size_t)avail < sizeof(buf)) ? avail : sizeof(buf));
-    if (n <= 0) break;
-    if (Update.write(buf, n) != (size_t)n) {
-      http.end(); Update.abort();
-      displayManager.showOtaProgress("OTA Update", "", "Write error");
-      delay(3000);
-      return;
-    }
-    written += n;
-    if (millis() - lastDraw > 200) {
-      int pct = (totalSize > 0) ? (written * 100 / totalSize) : 50;
-      displayManager.showOtaProgress("OTA Update", "Flashing...", tag, pct);
-      lastDraw = millis();
-    }
-  }
-  http.end();
-
-  if (!Update.end(true)) {
-    displayManager.showOtaProgress("OTA Update", "", "Update end failed");
-    delay(5000);
-    return;
-  }
-  // Update.end(true) reboots on success — unreachable
 }
