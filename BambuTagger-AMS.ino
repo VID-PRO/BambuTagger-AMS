@@ -155,9 +155,8 @@ void loop() {
           SpoolInfo info;
           if (rfidManager.getSpoolInfo(i, info) && info.present && info.tagReadSuccess) {
             bambuPrinter.sendSpoolData(i, info);
-          }
-        }
-      }
+  }
+}
     }
   }
 }
