@@ -378,6 +378,8 @@ void performOTAUpdate() {
     return;
   }
 
+  delay(100); // let stream buffer fill
+
   if (!Update.begin((totalSize > 0) ? (size_t)totalSize : UPDATE_SIZE_UNKNOWN)) {
     displayManager.showOtaProgress("OTA Update", "", "Update begin failed");
     delay(3000);
@@ -389,10 +391,18 @@ void performOTAUpdate() {
   uint8_t buf[512];
   int written = 0;
   unsigned long lastDraw = 0;
+  unsigned long lastData = millis();
 
   while (http.connected() && (totalSize <= 0 || written < totalSize)) {
     int avail = stream->available();
-    if (!avail) { delay(2); continue; }
+    if (!avail) {
+      if (written == 0 && millis() - lastData > 10000) {
+        Serial.println(F("OTA: timeout waiting for data"));
+        break;
+      }
+      delay(2); continue;
+    }
+    lastData = millis();
     int n = stream->read(buf, ((size_t)avail < sizeof(buf)) ? avail : sizeof(buf));
     if (n <= 0) break;
     if (Update.write(buf, n) != (size_t)n) {
