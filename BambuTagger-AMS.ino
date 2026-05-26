@@ -370,7 +370,6 @@ void performOTAUpdate() {
 
   code = http.GET();
   int totalSize = (binSize > 0) ? binSize : http.getSize();
-  Serial.printf("OTA: download GET=%d size=%d\n", code, totalSize);
   if (code != 200) {
     displayManager.showOtaProgress("OTA Update", "", "Download error");
     delay(3000);
@@ -381,7 +380,6 @@ void performOTAUpdate() {
   delay(100); // let stream buffer fill
 
   if (!Update.begin((totalSize > 0) ? (size_t)totalSize : UPDATE_SIZE_UNKNOWN)) {
-    Serial.printf("OTA: Update.begin failed: %s\n", Update.errorString());
     displayManager.showOtaProgress("OTA Update", "", "Update begin failed");
     delay(3000);
     http.end();
@@ -392,34 +390,19 @@ void performOTAUpdate() {
   uint8_t buf[512];
   int written = 0;
   unsigned long lastDraw = 0;
-  unsigned long lastData = millis();
 
   while (http.connected() && (totalSize <= 0 || written < totalSize)) {
     int avail = stream.available();
-    if (!avail) {
-      if (written == 0 && millis() - lastData > 10000) {
-        Serial.println(F("OTA: timeout waiting for data"));
-        break;
-      }
-      delay(2); continue;
-    }
-    lastData = millis();
-    int n = stream.read(buf, ((size_t)avail < sizeof(buf)) ? avail : sizeof(buf));
-      }
-      delay(2); continue;
-    }
-    lastData = millis();
+    if (!avail) { delay(2); continue; }
     int n = stream.read(buf, ((size_t)avail < sizeof(buf)) ? avail : sizeof(buf));
     if (n <= 0) break;
     if (Update.write(buf, n) != (size_t)n) {
-      Serial.printf("OTA: write error at %d: %s\n", written, Update.errorString());
       http.end(); Update.abort();
       displayManager.showOtaProgress("OTA Update", "", "Write error");
       delay(3000);
       return;
     }
     written += n;
-    if (written % 65536 == 0) Serial.printf("OTA: written=%d/%d\n", written, totalSize);
     if (millis() - lastDraw > 200) {
       int pct = (totalSize > 0) ? (written * 100 / totalSize) : 50;
       displayManager.showOtaProgress("OTA Update", "Flashing...", tag, pct);
@@ -427,10 +410,8 @@ void performOTAUpdate() {
     }
   }
   http.end();
-  Serial.printf("OTA: loop done, written=%d, connected=%d\n", written, http.connected());
 
   if (!Update.end(true)) {
-    Serial.printf("OTA: Update.end failed: %s\n", Update.errorString());
     displayManager.showOtaProgress("OTA Update", "", "Update end failed");
     delay(5000);
     return;

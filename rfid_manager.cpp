@@ -98,7 +98,7 @@ void RfidManager::loop() {
   static unsigned long lastCycle = 0;
   if (now - lastCycle > 1000) {
     lastCycle = now;
-    Serial.printf("RFID: poll slot %d (SS=%d)\n", currentSlot, SS_PINS[currentSlot]);
+    // Serial.printf("RFID: poll slot %d (SS=%d)\n", currentSlot, SS_PINS[currentSlot]);
   }
 
   SpoolInfo newInfo;

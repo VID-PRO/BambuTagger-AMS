@@ -133,7 +133,7 @@ void BambuPrinter::sendSpoolData(uint8_t slot, const SpoolInfo &info) {
   snprintf(topic, sizeof(topic), "%s/%s/request",
            config.mqttTopicPrefix, config.printerSerial);
 
-  Serial.printf("SEND: %s\n", payload);
+  // Serial.printf("SEND: %s\n", payload);
   mqttClient->publish(topic, payload);
 }
 
@@ -157,7 +157,7 @@ void BambuPrinter::requestPrinterStatus() {
 void BambuPrinter::mqttCallback(char* topic, byte* payload, unsigned int length) {
   printerOnline = true;
 
-  Serial.printf("MQTT [%s] %u\n", topic, length);
+  // Serial.printf("MQTT [%s] %u\n", topic, length);
   // Serial.write(payload, length);  // mute raw JSON
   // Serial.println();
 
@@ -190,7 +190,7 @@ void BambuPrinter::parseReport(JsonDocument &doc) {
           JsonObject a = v.as<JsonObject>();
           const char* idStr = a["id"].as<const char*>();
           uint8_t id = (idStr && idStr[0] >= '0' && idStr[0] <= '9') ? (uint8_t)atoi(idStr) : 99;
-          Serial.printf("AMS obj id raw='%s' -> %d\n", idStr ? idStr : "(null)", id);
+          // Serial.printf("AMS obj id raw='%s' -> %d\n", idStr ? idStr : "(null)", id);
           if (id < MAX_DETECTED_AMS) amsExistBits |= (1 << id);
           JsonArray trays = a["tray"];
           if (trays) {
@@ -207,9 +207,9 @@ void BambuPrinter::parseReport(JsonDocument &doc) {
           }
         }
         if (id < MAX_DETECTED_AMS) {
-          Serial.printf("AMS%d: tray[0]=%s/%s color=%s\n", id,
-                        detectedAms[id].trayTypes[0], detectedAms[id].trays[0],
-                        detectedAms[id].trayColors[0]);
+          // Serial.printf("AMS%d: tray[0]=%s/%s color=%s\n", id,
+          //               detectedAms[id].trayTypes[0], detectedAms[id].trays[0],
+          //               detectedAms[id].trayColors[0]);
         }
       }
     }
@@ -222,7 +222,7 @@ void BambuPrinter::parseReport(JsonDocument &doc) {
       for (JsonVariant mv : modules) {
         JsonObject m = mv.as<JsonObject>();
         const char* name = m["name"] | "";
-        Serial.printf("Module: name='%s'\n", name);
+        // Serial.printf("Module: name='%s'\n", name);
         if (strstr(name, "ams") || strchr(name, '/')) {
           const char* slash = strchr(name, '/');
           if (slash) {
