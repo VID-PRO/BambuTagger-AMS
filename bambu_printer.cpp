@@ -90,6 +90,24 @@ void BambuPrinter::reconnect() {
 void BambuPrinter::sendSpoolData(uint8_t slot, const SpoolInfo &info) {
   if (!config.mqttEnabled || !mqttClient || !mqttClient->connected()) return;
 
+  char ttype[32];
+  const char* src = info.detailedType[0] ? info.detailedType : info.materialType;
+  strncpy(ttype, src, sizeof(ttype) - 1);
+  ttype[sizeof(ttype) - 1] = '\0';
+  char* sp = strchr(ttype, ' ');
+  if (sp) *sp = '\0';
+
+  // If no detailed type, derive from material prefix (e.g. "GFA00" → "PLA")
+  if (!info.detailedType[0]) {
+    if (strncmp(info.materialType, "GFA", 3) == 0 || strncmp(info.materialType, "GFB", 3) == 0 ||
+        strncmp(info.materialType, "GFC", 3) == 0 || strncmp(info.materialType, "GFD", 3) == 0 ||
+        strncmp(info.materialType, "GFE", 3) == 0) strcpy(ttype, "PLA");
+    else if (strncmp(info.materialType, "GFG", 3) == 0) strcpy(ttype, "PETG");
+    else if (strncmp(info.materialType, "GFH", 3) == 0 || strncmp(info.materialType, "GFI", 3) == 0) strcpy(ttype, "ABS");
+    else if (strncmp(info.materialType, "GFJ", 3) == 0) strcpy(ttype, "ASA");
+    else if (strncmp(info.materialType, "GFK", 3) == 0) strcpy(ttype, "TPU");
+    else if (strncmp(info.materialType, "GFL", 3) == 0) strcpy(ttype, "PLA");
+  }
   char payload[512];
   snprintf(payload, sizeof(payload),
            "{\"print\":{\"command\":\"ams_filament_setting\","
@@ -98,24 +116,19 @@ void BambuPrinter::sendSpoolData(uint8_t slot, const SpoolInfo &info) {
            "\"tray_id\":%d,"
            "\"tray_info_idx\":\"%s\","
            "\"tray_color\":\"%s\","
-           "\"tray_type\":\"%s\","
-           "\"remain\":%d,"
-           "\"total\":%d,"
-           "\"uid\":\"%s\"}}",
+           "\"tray_type\":\"%s\"}}",
            millis(),
            config.amsUnit,
            (slot % 4),
            info.materialType,
            info.colorHex,
-           info.materialType,
-           info.remainingGrams,
-           info.totalGrams,
-           info.uid);
+           ttype);
 
   char topic[128];
   snprintf(topic, sizeof(topic), "%s/%s/request",
            config.mqttTopicPrefix, config.printerSerial);
 
+  Serial.printf("SEND: %s\n", payload);
   mqttClient->publish(topic, payload);
 }
 
