@@ -43,8 +43,8 @@ jobs:
         run: |
           arduino-cli compile --fqbn ${{ matrix.board.fqbn }} --build-path build .
           mkdir -p release
-          cp build/*.bin release/BambuTagger-AMS-${{ matrix.board.name }}.bin
-          cp build/*.elf release/BambuTagger-AMS-${{ matrix.board.name }}.elf
+          cp build/*.ino.bin release/BambuTagger-AMS.bin
+          cp build/*.ino.elf release/BambuTagger-AMS.elf
           ls -la release/
 
       - name: Upload release assets
