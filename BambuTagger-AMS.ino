@@ -119,7 +119,7 @@ void loop() {
     dnsServer.stop();
     Serial.print(F("WiFi connected! IP: "));
     Serial.println(localIP);
-    displayManager.showMessage("WiFi Connected", localIP.c_str());
+    displayManager.showOtaProgress("WiFi Connected", localIP.c_str());
     bambuPrinter.begin(cfg);
     if (MDNS.begin(cfg.deviceName)) {
       Serial.println(F("mDNS responder started"));
@@ -193,7 +193,7 @@ void connectWiFi() {
     localIP = WiFi.localIP().toString();
     Serial.print(F("Connected! IP: "));
     Serial.println(localIP);
-    displayManager.showMessage("WiFi Connected", localIP.c_str());
+    displayManager.showOtaProgress("WiFi Connected", localIP.c_str());
 
     if (MDNS.begin(cfg.deviceName)) {
       Serial.println(F("mDNS responder started"));
@@ -201,7 +201,7 @@ void connectWiFi() {
   } else {
     wifiConnected = false;
     Serial.println(F("WiFi connection failed — starting AP"));
-    displayManager.showMessage("WiFi Failed!", "Opening AP mode...");
+    displayManager.showOtaProgress("WiFi Failed!", "Opening AP mode...");
     startCaptivePortal();
   }
 }
@@ -229,7 +229,7 @@ void startCaptivePortal() {
   snprintf(apMsg1, sizeof(apMsg1), "WiFi: %s", cfg.deviceName);
   snprintf(apMsg2, sizeof(apMsg2), "IP: 192.168.4.1");
   snprintf(apMsg3, sizeof(apMsg3), "Configure WiFi");
-  displayManager.showMessage(apMsg1, apMsg2, apMsg3);
+  displayManager.showOtaProgress(apMsg1, apMsg2, apMsg3);
 }
 
 static uint8_t hexToByte(const char* hex) {
@@ -275,7 +275,7 @@ void handleReboot() {
 }
 
 void performOTAUpdate() {
-  displayManager.showMessage("OTA Update", "Checking version...");
+  displayManager.showOtaProgress("OTA Update", "Checking version...");
 
   WiFiClientSecure client;
   client.setInsecure();
@@ -285,7 +285,7 @@ void performOTAUpdate() {
 
   String url = String("https://api.github.com/repos/") + OTA_REPO + "/releases/latest";
   if (!http.begin(client, url)) {
-    displayManager.showMessage("OTA Update", "", "HTTP begin failed");
+    displayManager.showOtaProgress("OTA Update", "", "HTTP begin failed");
     delay(3000);
     return;
   }
@@ -293,7 +293,7 @@ void performOTAUpdate() {
 
   int code = http.GET();
   if (code != 200) {
-    displayManager.showMessage("OTA Update", "", "GitHub API error");
+    displayManager.showOtaProgress("OTA Update", "", "GitHub API error");
     delay(3000);
     http.end();
     return;
@@ -304,14 +304,14 @@ void performOTAUpdate() {
   http.end();
 
   if (err) {
-    displayManager.showMessage("OTA Update", "", "JSON parse error");
+    displayManager.showOtaProgress("OTA Update", "", "JSON parse error");
     delay(3000);
     return;
   }
 
   const char* tag = doc["tag_name"] | "";
   if (!tag[0]) {
-    displayManager.showMessage("OTA Update", "", "No release found");
+    displayManager.showOtaProgress("OTA Update", "", "No release found");
     delay(3000);
     return;
   }
@@ -325,14 +325,14 @@ void performOTAUpdate() {
   sscanf(r, "%d.%d.%d", &rMaj, &rMin, &rPat);
   sscanf(l, "%d.%d.%d", &lMaj, &lMin, &lPat);
   if (rMaj * 10000 + rMin * 100 + rPat <= lMaj * 10000 + lMin * 100 + lPat) {
-    displayManager.showMessage("OTA Update", "", "Already up to date");
+    displayManager.showOtaProgress("OTA Update", "", "Already up to date");
     delay(3000);
     return;
   }
 
   JsonArray assets = doc["assets"];
   if (!assets) {
-    displayManager.showMessage("OTA Update", "", "No assets");
+    displayManager.showOtaProgress("OTA Update", "", "No assets");
     delay(3000);
     return;
   }
@@ -347,14 +347,14 @@ void performOTAUpdate() {
   }
 
   if (!binUrl.length()) {
-    displayManager.showMessage("OTA Update", "", "No .bin found");
+    displayManager.showOtaProgress("OTA Update", "", "No .bin found");
     delay(3000);
     return;
   }
 
-  displayManager.showMessage("OTA Update", "Downloading...", tag);
+  displayManager.showOtaProgress("OTA Update", "Downloading...", tag);
   if (!http.begin(client, binUrl)) {
-    displayManager.showMessage("OTA Update", "", "Download failed");
+    displayManager.showOtaProgress("OTA Update", "", "Download failed");
     delay(3000);
     return;
   }
@@ -362,7 +362,7 @@ void performOTAUpdate() {
 
   code = http.GET();
   if (code != 200) {
-    displayManager.showMessage("OTA Update", "", "Download error");
+    displayManager.showOtaProgress("OTA Update", "", "Download error");
     delay(3000);
     http.end();
     return;
@@ -370,14 +370,14 @@ void performOTAUpdate() {
 
   int len = http.getSize();
   if (len <= 0) {
-    displayManager.showMessage("OTA Update", "", "Unknown size");
+    displayManager.showOtaProgress("OTA Update", "", "Unknown size");
     delay(3000);
     http.end();
     return;
   }
 
   if (!Update.begin(len)) {
-    displayManager.showMessage("OTA Update", "", "Update begin failed");
+    displayManager.showOtaProgress("OTA Update", "", "Update begin failed");
     delay(3000);
     http.end();
     return;
@@ -387,18 +387,18 @@ void performOTAUpdate() {
   http.end();
 
   if (written != (size_t)len) {
-    displayManager.showMessage("OTA Update", "", "Write mismatch");
+    displayManager.showOtaProgress("OTA Update", "", "Write mismatch");
     delay(3000);
     return;
   }
 
   if (!Update.end()) {
-    displayManager.showMessage("OTA Update", "", "Update end failed");
+    displayManager.showOtaProgress("OTA Update", "", "Update end failed");
     delay(3000);
     return;
   }
 
-  displayManager.showMessage("OTA Update", "", "Success! Rebooting...");
+  displayManager.showOtaProgress("OTA Update", "", "Success! Rebooting...");
   delay(2000);
   ESP.restart();
 }

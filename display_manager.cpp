@@ -122,6 +122,20 @@ void DisplayManager::drawFooter(bool mqttConnected, bool printerOnline) {
   display->print(ptrText);
 }
 
+void DisplayManager::showOtaProgress(const char* line1, const char* line2,
+                                      const char* line3) {
+  if (!display) return;
+  display->clearDisplay();
+  drawStatusBar(true);
+  display->setTextColor(SSD1306_WHITE);
+  display->setCursor(0, 18);
+  if (line1) display->println(line1);
+  if (line2) { display->setCursor(0, 30); display->println(line2); }
+  if (line3) { display->setCursor(0, 42); display->println(line3); }
+  drawFooter(false, false);
+  display->display();
+}
+
 void DisplayManager::showMessage(const char* line1, const char* line2,
                                   const char* line3, const char* line4) {
   if (!display) return;
