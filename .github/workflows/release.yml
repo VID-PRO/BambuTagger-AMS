@@ -41,10 +41,10 @@ jobs:
 
       - name: Compile release binaries
         run: |
-          arduino-cli compile --fqbn ${{ matrix.board.fqbn }} .
+          arduino-cli compile --fqbn ${{ matrix.board.fqbn }} --build-path build .
           mkdir -p release
-          find build -name "*.bin" -exec cp {} release/BambuTagger-AMS-${{ matrix.board.name }}.bin \;
-          find build -name "*.elf" -exec cp {} release/BambuTagger-AMS-${{ matrix.board.name }}.elf \;
+          cp build/*.bin release/BambuTagger-AMS-${{ matrix.board.name }}.bin
+          cp build/*.elf release/BambuTagger-AMS-${{ matrix.board.name }}.elf
           ls -la release/
 
       - name: Upload release assets
