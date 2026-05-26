@@ -65,6 +65,9 @@ color:#fff;font-size:14px;opacity:0;transition:opacity .3s;z-index:1000}
 .toast.show{opacity:1}
 .toast-success{background:#238636}
 .toast-error{background:#da3633}
+footer{position:fixed;bottom:0;left:0;right:0;text-align:center;padding:6px;
+font-size:10px;color:#484f58;background:#0d1117;border-top:1px solid #30363d}
+body{padding-bottom:28px}
 </style>
 </head>
 <body>
@@ -263,9 +266,15 @@ function updateFirmware(){
 var b=document.getElementById('otaBtn');
 if(b.textContent.indexOf('up to date')>=0)return;
 if(!confirm('Update firmware from GitHub? Device will reboot.'))return;
+b.disabled=true;b.textContent='Updating...';b.className='btn btn-secondary';
 fetch('/api/ota',{method:'POST'}).then(function(r){return r.json()})
-.then(function(d){showToast(d.message||'Update started',d.ok)})
-.catch(function(){showToast('OTA failed',false)})}
+.then(function(d){
+showToast(d.message||'Update started, rebooting...',d.ok);
+var check=setInterval(function(){
+fetch('/api/version').then(function(){clearInterval(check);location.reload()})
+.catch(function(){})},3000);
+})
+.catch(function(){showToast('OTA failed',false);b.disabled=false})}
 
 function checkOta(){
 fetch('/api/ota-check').then(function(r){return r.json()}).then(function(v){
@@ -314,6 +323,7 @@ fetch('/api/version').then(function(r){return r.json()}).then(function(v){
 document.getElementById('fwVersion').textContent='v'+v.version})
 checkOta()
 </script>
+<footer>&copy; 2026 by <a href="https://www.vid-pro.de" target="_blank" style="color:#484f58;text-decoration:none" onmouseover="this.style.color='#c9d1d9'" onmouseout="this.style.color='#484f58'">VID-PRO</a></footer>
 </body>
 </html>
 )rawliteral";
