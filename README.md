@@ -214,4 +214,4 @@ Workflow at `GHActions/release.yml`:
 
 ## License
 
-MIT
+AGPL-3.0
