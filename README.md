@@ -250,7 +250,3 @@ Workflow at `GHActions/release.yml`:
 | MQTT Update Interval | 5000 ms |
 | RFID Poll Interval | 100 ms |
 | Firmware Version | 1.0.3 |
-
-## License
-
-MIT
