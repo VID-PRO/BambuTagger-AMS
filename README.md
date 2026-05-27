@@ -109,12 +109,12 @@ Available at `http://<esp32-ip>` on your network, or `http://192.168.4.1` in AP 
 
 ```
 ┌──────────────────────────────────┐
-│ Device Name                WiFi │
+│ Device Name                 WiFi │
 ├──────────────────────────────────┤
-│ 1: PLA   #C0C0C0FF              │  ← AMS tray data
-│ 2: empty                        │
-│ 3: empty                        │
-│ 4: empty                        │
+│ 1: PLA   #C0C0C0FF               │  ← AMS tray data
+│ 2: empty                         │
+│ 3: empty                         │
+│ 4: empty                         │
 ├──────────────────────────────────┤
 │ MQTT:OK                   PTR:OK│
 └──────────────────────────────────┘
