@@ -116,7 +116,7 @@ Available at `http://<esp32-ip>` on your network, or `http://192.168.4.1` in AP 
 │ 3: empty                         │
 │ 4: empty                         │
 ├──────────────────────────────────┤
-│ MQTT:OK                   PTR:OK│
+│ MQTT:OK             n      PTR:OK│
 └──────────────────────────────────┘
 ```
 
