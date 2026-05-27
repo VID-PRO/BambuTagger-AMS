@@ -354,46 +354,41 @@ void performOTAUpdate() {
 
   for (int retry = 0; retry < 3; retry++) {
     if (retry > 0) {
-      Serial.printf("OTA: retry %d/3\n", retry);
       displayManager.showOtaProgress("OTA Update", "Retrying...", tag.c_str(), 0);
       delay(2000);
     }
 
-    http.begin(client, dlUrl);
-    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    http.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
-    code = http.GET();
-    if (code != 200) { http.end(); continue; }
+    HTTPClient dl;
+    dl.begin(client, dlUrl);
+    dl.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    dl.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
+    int dlCode = dl.GET();
+    if (dlCode != 200) { dl.end(); continue; }
 
-    int totalSize = (binSize > 0) ? binSize : http.getSize();
+    int totalSize = (binSize > 0) ? binSize : dl.getSize();
     if (!Update.begin((totalSize > 0) ? (size_t)totalSize : UPDATE_SIZE_UNKNOWN)) {
-      http.end();
+      dl.end();
       displayManager.showOtaProgress("OTA Update", "", "Update begin failed");
       delay(3000);
       return;
     }
 
-    WiFiClient* stream = http.getStreamPtr();
+    WiFiClient* stream = dl.getStreamPtr();
     uint8_t buf[512];
     int written = 0;
     unsigned long lastDraw = 0;
-    unsigned long startWait = millis();
     unsigned long stallSince = millis();
 
-    while (http.connected() && (totalSize <= 0 || written < totalSize)) {
+    while (dl.connected() && (totalSize <= 0 || written < totalSize)) {
       int avail = stream->available();
       if (!avail) {
-        if (millis() - startWait > 10000) { break; }
-        if (written > 0 && millis() - stallSince > 5000) { break; }
+        if (written > 0 && millis() - stallSince > 5000) break;
         delay(2); continue;
       }
-      startWait = millis();
       stallSince = millis();
       int n = stream->readBytes(buf, min(avail, (int)sizeof(buf)));
       if (n <= 0) break;
-      if (Update.write(buf, n) != (size_t)n) {
-        http.end(); Update.abort(); break;
-      }
+      if (Update.write(buf, n) != (size_t)n) { break; }
       written += n;
       if (millis() - lastDraw > 200) {
         int pct = (totalSize > 0) ? (written * 100 / totalSize) : 50;
@@ -401,10 +396,10 @@ void performOTAUpdate() {
         lastDraw = millis();
       }
     }
-    http.end();
+    dl.end();
 
     if (written >= totalSize && Update.end(true)) {
-      return; // success, device reboots
+      return;
     }
     Update.abort();
   }
