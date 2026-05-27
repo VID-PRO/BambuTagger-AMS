@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <Preferences.h>
 
-#define FIRMWARE_VERSION "1.0.3"
+#define FIRMWARE_VERSION "1.0.4"
 #define OTA_REPO "VID-PRO/BambuTagger-AMS"
 
 #define NUM_SLOTS 4
@@ -41,7 +41,7 @@ struct SpoolInfo {
   bool present;
   char uid[16];
   char materialType[32];
-  char detailedType[17];
+  char detailedType[256];
   char color[16];
   char colorHex[9];
   uint16_t remainingGrams;

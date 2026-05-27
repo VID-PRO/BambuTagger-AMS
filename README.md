@@ -4,17 +4,20 @@ Multi-spool NFC tag reader for Bambu Lab printers. Reads 4 Bambu Lab filament sp
 
 ## Features
 
-- **4x RC522** on shared SPI bus polling MIFARE Classic 1K spool tags via `MFRC522-spi-i2c-uart-async`
+- **4x RC522** on shared SPI bus polling MIFARE Classic 1K + NTAG tags via `MFRC522-spi-i2c-uart-async`
+- **Multi-tag auto-detect** — MIFARE Classic 1K (Bambu Lab) or NTAG (SpoolEase), auto-routed to correct parser
 - **HKDF-SHA256 key derivation** — derives per-sector MIFARE keys from the tag UID using Bambu's KDF salt
 - **Live printer AMS sync** — reads tray data (material, color, type) from the printer over MQTT
 - **Bambu BMCU support** — sends `ams_filament_setting` with correct `tray_type`, `tray_color`, `nozzle_temp_min/max`
-- **Web interface** — 3-tab SPA: Status (AMS slots + scanned tag data merged with Sub type), Printer Config, WiFi Config
-- **OLED display** — shows live AMS tray data, OTA progress, MQTT+PTR status
+- **NTAG / SpoolEase** — reads NDEF URI records, extracts spool data from `tag.spoolease.io` URLs
+- **Web interface** — 3-tab SPA: Status (merged slots + Sub type + color swatches), Printer Config, WiFi Config
+- **OLED display** — boot splash, live AMS tray data, OTA progress bar, MQTT+PTR status
 - **4x WS2812 LEDs** — per-slot color display from tag `colorHex`
+- **Boot splash**: 2-second logo display from `Logo/splash.png`
 - **MQTT bridge** — subscribes to printer status, publishes `ams_filament_setting` commands
 - **Auto AP fallback** — captive portal on `192.168.4.1` when WiFi is unavailable
-- **OTA updates** — one-click firmware update from GitHub Releases with OLED progress display
-- **GitHub Actions** — CI build on commit, release artifacts on version tags
+- **OTA updates** — one-click firmware update from GitHub Releases, OLED progress bar, web overlay with status
+- **GitHub Actions** — CI build on commit, merged binary + OTA binary release on version tags
 
 ## Hardware
 
@@ -105,22 +108,26 @@ Available at `http://<esp32-ip>` on your network, or `http://192.168.4.1` in AP 
 ### WiFi Config Tab
 - SSID, Password, Device Name
 
+### Footer
+- Sticky footer: `© 2026 by VID-PRO` with link to [www.vid-pro.de](https://www.vid-pro.de)
+
 ## OLED Display (128x64)
 
 ```
 ┌──────────────────────────────────┐
-│ Device Name                 WiFi │
+│ Device Name                WiFi │
 ├──────────────────────────────────┤
-│ 1: PLA   #C0C0C0FF               │  ← AMS tray data
-│ 2: empty                         │
-│ 3: empty                         │
-│ 4: empty                         │
+│ 1: PLA   #C0C0C0FF              │  ← AMS tray data
+│ 2: empty                        │
+│ 3: empty                        │
+│ 4: empty                        │
 ├──────────────────────────────────┤
-│ MQTT:OK             n      PTR:OK│
+│ MQTT:OK                   PTR:OK│
 └──────────────────────────────────┘
 ```
 
-OTA progress shown on OLED: "Checking version..." → "Downloading... v1.0.1" → "Success! Rebooting..."
+OTA progress shown on OLED with header/footer preserved:
+"OTA Update" → "Downloading..." → "Flashing... 45%" → auto-reboot
 
 ## Printer Communication
 
@@ -152,6 +159,8 @@ OTA progress shown on OLED: "Checking version..." → "Downloading... v1.0.1" �
 
 ## Tag Format & Reading
 
+### Bambu Lab (MIFARE Classic 1K)
+
 Bambu Lab uses **MIFARE Classic 1K** tags with fixed block offsets:
 
 | Block | Content |
@@ -163,13 +172,41 @@ Bambu Lab uses **MIFARE Classic 1K** tags with fixed block offsets:
 | 5 | RGBA color (bytes 0-3) + spool weight LE (bytes 4-5) |
 | 6 | Nozzle temps (bytes 8-11 LE) |
 
-### Authentication
+### SpoolEase (NTAG)
+
+SpoolEase uses **NTAG** tags with NDEF URI records. The URL contains encoded spool data:
+
+`https://tag.spoolease.io/S1/?TG=...&M=PLA&CC=000000FF&SC=GFL99&WL=1000&WE=179&WF=1215&NN=190&NX=240`
+
+URL parameters parsed and mapped to SpoolInfo:
+
+| Param | Field | Description |
+|-------|-------|-------------|
+| `M=` | display type | e.g. "PLA", "PETG" |
+| `SC=` | `materialType` | Bambu index for MQTT (e.g. "GFL99") |
+| `CC=` | `colorHex` | RGBA hex (e.g. "000000FF") |
+| `B=` | `manufacturer` | Brand name (e.g. "Jayo") |
+| `WL=` | `remainingGrams` | Remaining filament weight |
+| `WE=` | empty spool | Empty spool weight |
+| `WF=` | full spool | `totalGrams = WF - WE` |
+| `NN=` | `nozzleTempMin` | Min nozzle temp °C |
+| `NX=` | `nozzleTempMax` | Max nozzle temp °C |
+
+Reading uses NDEF TLV parsing:
+- NDEF Message TLV (0x03) → NDEF record with TNF=WellKnown, type="U"
+- URI identifier code byte prepended to URI string
+- Non-printable bytes terminate the URI scan
+- Spool ID extracted from URL path after last `/`
+
+### Authentication & Reading
+- **Tag auto-detect**: SAK-based type detection (MIFARE 1K vs NTAG)
 - **HKDF-SHA256** derives 16 per-sector Key A/B from 4-byte UID
 - Bambu KDF salt/info vectors from reverse-engineered firmware
 - Falls back to default key `0xFF...FF` for blank sectors
 - Failed auth re-wakes tag via antenna power-cycle
-- Dead readers auto-skipped (version register check)
+- Dead readers auto-skipped (version register 0x92/0x91/0xB2 check)
 - SPI: 1 MHz via `MFRC522_SPI`
+- NTAG: page-level reads (page+=4, 4 pages per MIFARE_Read)
 
 ### Filament Type Mapping
 | Prefix | Type |
@@ -182,18 +219,20 @@ Bambu Lab uses **MIFARE Classic 1K** tags with fixed block offsets:
 
 ## OTA Updates
 
-- **Button**: "Update Firmware" on Status page
-- **Endpoint**: `POST /api/ota` triggers update
-- **Version check**: `GET /api/version` returns current version
-- Downloads latest `.bin` from GitHub Releases, flashes via `Update.h`
-- OLED shows "Checking version..." → "Downloading... v1.0.1" → "Success! Rebooting..."
-- Device auto-reboots after successful flash
+- **Button**: "Update Firmware" on Status page (shows "Update to vX.Y.Z" or "up to date")
+- **Overlay**: full-screen progress overlay with spinner, status text, progress bar
+- **Endpoint**: `POST /api/ota` triggers update, `GET /api/ota-check` checks for newer version
+- Downloads latest `.ino.bin` from GitHub Releases, flashes via `Update.h`
+- 3 retry attempts with 5s stall detection, fresh HTTP client per attempt
+- OLED shows "Checking version..." → "Downloading..." → "Flashing..." with percentage
+- Device auto-reboots after successful flash, web UI auto-reloads
 
 ## CI / CD
 
 Workflow at `GHActions/release.yml`:
-- **On push/PR**: compiles sketch
-- **On release**: compiles and attaches `.bin` + `.elf` as release assets
+- **On push/PR**: compiles sketch, uploads artifacts
+- **On release tag**: creates merged flash binary + OTA binary, attaches to GitHub Release
+- Arduino cache for fast rebuilds, pinned esp32:esp32@3.0.7 core
 
 ## Configuration Defaults
 
@@ -210,8 +249,8 @@ Workflow at `GHActions/release.yml`:
 | MQTT Enabled | No |
 | MQTT Update Interval | 5000 ms |
 | RFID Poll Interval | 100 ms |
-| Firmware Version | 1.0.0 |
+| Firmware Version | 1.0.3 |
 
 ## License
 
-AGPL-3.0
+MIT

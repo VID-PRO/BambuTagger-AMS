@@ -158,7 +158,9 @@ bool RfidManager::readNtag(uint8_t slot, SpoolInfo &info) {
 
   strncpy(info.uid, uidStr, sizeof(info.uid) - 1);
 
-  if (!success) {
+  if (success) {
+    info.present = true;
+  } else {
     info.present = true;
     strcpy(info.materialType, "Unknown tag");
     info.tagReadSuccess = false;
@@ -297,11 +299,11 @@ bool RfidManager::readNtagPages(uint8_t slot, SpoolInfo &info) {
 
   uint16_t bytesRead = 0;
 
-  for (uint8_t page = 4; page < 230 && bytesRead < bufferSize; page++) {
+  for (uint8_t page = 4; page < 230 && bytesRead < bufferSize; page += 4) {
     byte readBuf[18];
     byte readSize = sizeof(readBuf);
     MFRC522::StatusCode status = reader->MIFARE_Read(page, readBuf, &readSize);
-    if (status != MFRC522::STATUS_OK) break;
+    if (status != MFRC522::STATUS_OK) continue;
 
     byte bytesThisBlock = (readSize > 16) ? 16 : readSize;
 
@@ -313,7 +315,10 @@ bool RfidManager::readNtagPages(uint8_t slot, SpoolInfo &info) {
   Serial.printf("Slot %d: NTAG read, bytesRead=%d\n", slot, bytesRead);
 
   bool result = TagParser::parse(dataBuffer, bytesRead, info.uid, info);
-  Serial.printf("Slot %d: parse result=%s\n", slot, result ? "OK" : "FAIL");
+  if (!result) {
+    info.present = true;
+    info.tagReadSuccess = false;
+  }
 
   delete[] dataBuffer;
   return result;
