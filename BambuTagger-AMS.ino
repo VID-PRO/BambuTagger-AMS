@@ -58,6 +58,7 @@ void setup() {
 
   displayManager.begin(cfg.deviceName);
   displayManager.showBootScreen();
+  delay(2000);
 
   Serial.print(F("Device: "));
   Serial.println(cfg.deviceName);
