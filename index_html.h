@@ -247,7 +247,7 @@ document.getElementById('printerAmsCards').innerHTML=printerHtml||'<span style="
 var status=[];
 for(var a=0;a<ams.units.length;a++){
 var u=ams.units[a];
-status.push('AMS '+labels[a]+':'+(u.connected?'<span class="led-green" style="width:8px;height:8px;display:inline-block;border-radius:50%"></span>':'off'));
+status.push('AMS '+labels[a]+':'+(u.connected?'<span class="led-green" style="width:8px;height:8px;display:inline-block;border-radius:50%"></span>':'<span class="led-red" style="width:8px;height:8px;display:inline-block;border-radius:50%"></span>'));
 if(u.connected){
 var sel=document.getElementById('amsUnit');
 for(var o=0;o<sel.options.length;o++)if(sel.options[o].value==a){sel.options[o].text=labels[a]+' (detected)'}
