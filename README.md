@@ -2,6 +2,10 @@
 
 Multi-spool NFC tag reader for Bambu Lab printers. Reads 4 Bambu Lab filament spool tags via RC522, displays live printer AMS tray data over MQTT, and sends RFID tag data to the printer/BMCU. Fully configurable via web interface with automatic AP fallback and OTA firmware updates.
 
+<img src="Pics/printer.png" />
+<img src="Pics/status.png" />
+<img src="Pics/pcb.png" />
+
 ## Features
 
 - **4x RC522** on shared SPI bus polling MIFARE Classic 1K + NTAG tags via `MFRC522-spi-i2c-uart-async`
