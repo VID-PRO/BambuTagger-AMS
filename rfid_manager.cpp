@@ -120,7 +120,7 @@ void RfidManager::loop() {
   } else {
     if (spoolData[currentSlot].present) {
       if (now - spoolData[currentSlot].lastSeen > RFID_DEBOUNCE_MS) {
-        TagParser::clear(spoolData[currentSlot]);
+        spoolData[currentSlot].present = false; // keep last known data for LED
       }
     }
   }

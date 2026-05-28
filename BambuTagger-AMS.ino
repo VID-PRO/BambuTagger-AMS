@@ -246,25 +246,24 @@ static uint8_t hexToByte(const char* hex) {
 }
 
 void updateLedStatus() {
+  uint8_t amsUnit = cfg.amsUnit;
   for (uint8_t i = 0; i < NUM_SLOTS; i++) {
-    SpoolInfo info;
-    bool present = rfidManager.getSpoolInfo(i, info);
-
     if (!wifiConnected && !apMode) {
       ledManager.setSlotLed(i, LED_WIFI_DISCONNECTED);
     } else if (apMode) {
       ledManager.setSlotLed(i, LED_IDLE);
-    } else if (!present) {
-      ledManager.setSlotLed(i, LED_IDLE);
-    } else if (info.tagReadSuccess && info.colorHex[0]) {
-      uint8_t r = hexToByte(info.colorHex);
-      uint8_t g = hexToByte(info.colorHex + 2);
-      uint8_t b = hexToByte(info.colorHex + 4);
-      ledManager.setSlotColor(i, r, g, b);
-    } else if (info.tagReadSuccess) {
-      ledManager.setSlotLed(i, LED_TAG_OK);
+    } else if (bambuPrinter.isAmsDetected(amsUnit)) {
+      const char* col = bambuPrinter.getAmsTrayColor(amsUnit, i);
+      if (col && col[0]) {
+        uint8_t r = hexToByte(col);
+        uint8_t g = hexToByte(col + 2);
+        uint8_t b = hexToByte(col + 4);
+        ledManager.setSlotColor(i, r, g, b);
+      } else {
+        ledManager.setSlotLed(i, LED_IDLE);
+      }
     } else {
-      ledManager.setSlotLed(i, LED_TAG_PRESENT);
+      ledManager.setSlotLed(i, LED_IDLE);
     }
   }
 }

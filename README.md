@@ -12,7 +12,7 @@ Multi-spool NFC tag reader for Bambu Lab printers. Reads 4 Bambu Lab filament sp
 - **NTAG / SpoolEase** — reads NDEF URI records, extracts spool data from `tag.spoolease.io` URLs
 - **Web interface** — 3-tab SPA: Status (merged slots + Sub type + color swatches), Printer Config, WiFi Config
 - **OLED display** — boot splash, live AMS tray data, OTA progress bar, MQTT+PTR status
-- **4x WS2812 LEDs** — per-slot color display from tag `colorHex`
+- **4x WS2812 LEDs** — per-slot color from printer AMS tray data (live MQTT sync)
 - **Boot splash**: 2-second logo display from `Logo/splash.png`
 - **MQTT bridge** — subscribes to printer status, publishes `ams_filament_setting` commands
 - **Auto AP fallback** — captive portal on `192.168.4.1` when WiFi is unavailable
@@ -250,3 +250,4 @@ Workflow at `GHActions/release.yml`:
 | MQTT Update Interval | 5000 ms |
 | RFID Poll Interval | 100 ms |
 | Firmware Version | 1.0.3 |
+
