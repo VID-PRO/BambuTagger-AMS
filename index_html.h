@@ -352,7 +352,7 @@ document.getElementById('fwVersion').textContent='v'+v.version})
 checkOta()
 </script>
 <div id="otaOverlay"><div class="spinner"></div><div class="msg">Installing update...</div><div class="sub" id="otaOverlaySub"></div><div class="bar"><div class="barFill" id="otaBar" style="width:0%"></div></div></div>
-<footer>&copy; 2026 by <a href="https://www.vid-pro.de" target="_blank" style="color:#484f58;text-decoration:none" onmouseover="this.style.color='#c9d1d9'" onmouseout="this.style.color='#484f58'">VID-PRO</a></footer>
+<footer>&copy; 2026 by <a href="https://www.bambutagger.de" target="_blank" style="color:#484f58;text-decoration:none" onmouseover="this.style.color='#c9d1d9'" onmouseout="this.style.color='#484f58'">BambuTagger</a></footer>
 </body>
 </html>
 )rawliteral";
