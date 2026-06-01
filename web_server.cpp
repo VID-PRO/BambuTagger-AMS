@@ -86,6 +86,8 @@ void WebInterface::handleStatus() {
       unit["fwVer"] = bambuPrinter->getAmsFwVer(a);
       unit["productName"] = bambuPrinter->getAmsProductName(a);
       unit["serial"] = bambuPrinter->getAmsSerial(a);
+      unit["temperature"] = bambuPrinter->getAmsTemperature(a);
+      unit["humidity"] = bambuPrinter->getAmsHumidity(a);
       JsonArray trays = unit.createNestedArray("trays");
       for (uint8_t t = 0; t < 4; t++) {
         JsonObject tray = trays.createNestedObject();

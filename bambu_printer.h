@@ -20,6 +20,8 @@ struct AmsInfo {
   char trays[4][32];
   char trayTypes[4][16];
   char trayColors[4][9];
+  float temperature;
+  float humidity;
 };
 
 enum PrinterState {
@@ -47,6 +49,8 @@ public:
   const char* getAmsFwVer(uint8_t amsId) const;
   const char* getAmsProductName(uint8_t amsId) const;
   const char* getAmsSerial(uint8_t amsId) const;
+  float getAmsTemperature(uint8_t amsId) const;
+  float getAmsHumidity(uint8_t amsId) const;
   void reconnect();
 
 private:

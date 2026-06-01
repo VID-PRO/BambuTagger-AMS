@@ -191,7 +191,11 @@ void BambuPrinter::parseReport(JsonDocument &doc) {
           const char* idStr = a["id"].as<const char*>();
           uint8_t id = (idStr && idStr[0] >= '0' && idStr[0] <= '9') ? (uint8_t)atoi(idStr) : 99;
           // Serial.printf("AMS obj id raw='%s' -> %d\n", idStr ? idStr : "(null)", id);
-          if (id < MAX_DETECTED_AMS) amsExistBits |= (1 << id);
+          if (id < MAX_DETECTED_AMS) {
+            amsExistBits |= (1 << id);
+            detectedAms[id].temperature = a["temp"].as<float>();
+            detectedAms[id].humidity = a["humidity_raw"].as<float>();
+          }
           JsonArray trays = a["tray"];
           if (trays) {
             for (JsonObject t : trays) {
@@ -304,6 +308,16 @@ const char* BambuPrinter::getAmsProductName(uint8_t amsId) const {
 const char* BambuPrinter::getAmsSerial(uint8_t amsId) const {
   if (amsId >= MAX_DETECTED_AMS) return "";
   return detectedAms[amsId].serial;
+}
+
+float BambuPrinter::getAmsTemperature(uint8_t amsId) const {
+  if (amsId >= MAX_DETECTED_AMS) return 0;
+  return detectedAms[amsId].temperature;
+}
+
+float BambuPrinter::getAmsHumidity(uint8_t amsId) const {
+  if (amsId >= MAX_DETECTED_AMS) return 0;
+  return detectedAms[amsId].humidity;
 }
 
 void BambuPrinter::staticMqttCallback(char* topic, byte* payload, unsigned int length) {

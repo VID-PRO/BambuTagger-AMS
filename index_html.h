@@ -95,10 +95,14 @@ border-top-color:#58a6ff;border-radius:50%;animation:spin .8s linear infinite}
 <div class="card">
 <h2>Slot Status</h2>
 <div class="slot-grid" id="slotGrid"></div>
+<div id="bmeBox" style="text-align:center;padding:8px;font-size:18px;color:#c9d1d9;display:none">
+<span style="font-size:24px;font-weight:bold" id="bmeTemp"></span>
+<span style="color:#8b949e;font-size:12px" id="bmeHum"></span>
+</div>
 <div class="status-bar">
 <div><span class="status-dot" id="wifiDot"></span><span id="wifiStatus">WiFi: --</span></div>
 <div><span class="status-dot" id="mqttDot"></span><span id="mqttStatus">MQTT: --</span></div>
-<div><span class="status-dot" id="printerDot"></span><span id="printerStatus">Printer: --</span></div>
+<div><span class="status-dot" id="printerDot"></span><span id="printerStatus">Printer: --</span><span id="bmeInline" style="font-size:12px;color:#8b949e;margin-left:8px"></span></div>
 <div style="margin-left:auto"><span id="bmeData" style="font-size:12px;color:#8b949e"></span></div>
 </div>
   <div class="actions">
@@ -218,8 +222,9 @@ document.getElementById('mqttStatus').textContent='MQTT: '+(data.mqttConnected?'
 document.getElementById('mqttDot').className='status-dot '+(data.mqttConnected?'led-green':'led-red');
 document.getElementById('printerStatus').textContent='Printer: '+(data.printerOnline?'Online':'Offline');
 document.getElementById('printerDot').className='status-dot '+(data.printerOnline?'led-green':'led-red');
-if(data.bmeOk){document.getElementById('bmeData').textContent='\u2600 '+data.temperature.toFixed(1)+'C \uD83D\uDCA7 '+data.humidity.toFixed(0)+'%'}
-else{document.getElementById('bmeData').textContent=''}
+if(data.bmeOk){
+document.getElementById('bmeInline').innerHTML='&#9728; '+data.temperature.toFixed(1)+'C &#128167; '+data.humidity.toFixed(0)+'%';
+}else{document.getElementById('bmeInline').textContent=''}
 if(data.detectedAms){
 var ams=data.detectedAms,labels=['A','B','C','D'];
 
@@ -229,8 +234,13 @@ for(var a=0;a<ams.units.length;a++){
 var u=ams.units[a];
 if(!u.connected)continue;
 printerHtml+='<div style="border:1px solid #30363d;border-radius:6px;padding:12px;margin-bottom:8px">';
-printerHtml+='<div style="font-weight:bold;font-size:13px;color:#58a6ff;margin-bottom:4px">'+labels[a]+'</div>';
-printerHtml+='<div style="font-size:11px;color:#8b949e;margin-bottom:8px">'+(u.productName||'AMS')+' &middot; FW '+(u.fwVer||'?')+' &middot; SN '+(u.serial||'?')+'</div>';
+printerHtml+='<div style="font-weight:bold;font-size:13px;color:#58a6ff;margin-bottom:4px">'+labels[a];
+if(u.temperature>0)printerHtml+=' <span style="font-size:10px;color:#8b949e">&#9728;'+u.temperature.toFixed(1)+'C &#128167;'+u.humidity.toFixed(0)+'%</span>';
+printerHtml+='</div>';
+printerHtml+='<div style="font-size:11px;color:#8b949e;margin-bottom:8px">';
+if(!u.productName||!u.productName[0]){printerHtml+='AMS '+(u.productName||'')}
+else printerHtml+=u.productName;
+printerHtml+=' &middot; FW '+(u.fwVer&&u.fwVer[0]?u.fwVer:'?')+' &middot; SN '+(u.serial&&u.serial[0]?u.serial:'?')+'</div>';
 printerHtml+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
 for(var t=0;t<u.trays.length;t++){
 var tr=u.trays[t];
