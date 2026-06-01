@@ -318,6 +318,9 @@ bool TagParser::parseRawNTAG(uint8_t* data, uint16_t length, const char* uid, Sp
                           seType, info.materialType, info.colorHex,
                           info.remainingGrams, info.totalGrams);
             snprintf(info.detailedType, sizeof(info.detailedType), "%s", seType[0] ? seType : tagLabel);
+            // Show SpoolEase as tag type, M= as material
+            strncpy(info.detailedType, "SpoolEase", sizeof(info.detailedType) - 1);
+            if (seType[0]) strncpy(info.materialType, seType, sizeof(info.materialType) - 1);
             } else {
               strcpy(info.materialType, tagLabel);
               snprintf(info.detailedType, sizeof(info.detailedType), "%s", tagLabel);

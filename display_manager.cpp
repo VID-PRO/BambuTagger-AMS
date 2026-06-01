@@ -49,7 +49,7 @@ void DisplayManager::drawSlotGrid(const SpoolInfo slots[NUM_SLOTS]) {
   display->setTextColor(SSD1306_WHITE);
 
   for (uint8_t i = 0; i < NUM_SLOTS; i++) {
-    uint8_t y = 9 + (i * 10);
+    uint8_t y = 9 + (i * 9);
 
     display->setCursor(0, y);
     display->printf("%d:", i + 1);
@@ -86,7 +86,7 @@ void DisplayManager::drawPrinterSlots(BambuPrinter* printer, uint8_t amsUnit) {
   display->setTextColor(SSD1306_WHITE);
 
   for (uint8_t i = 0; i < NUM_SLOTS; i++) {
-    uint8_t y = 9 + (i * 10);
+    uint8_t y = 9 + (i * 9);
 
     display->setCursor(0, y);
     display->printf("%d:", i + 1);
@@ -116,16 +116,19 @@ void DisplayManager::drawPrinterSlots(BambuPrinter* printer, uint8_t amsUnit) {
 }
 
 void DisplayManager::drawFooter(bool mqttConnected, bool printerOnline, float temp, float humidity) {
-  display->drawFastHLine(0, 55, SCREEN_WIDTH, SSD1306_WHITE);
-  display->setCursor(0, 57);
+  display->drawFastHLine(0, 47, SCREEN_WIDTH, SSD1306_WHITE);
   if (temp > -99) {
+    display->setTextSize(2);
+    display->setCursor(2, 49);
     display->printf("%.0fC %.0f%%", temp, humidity);
+    display->setTextSize(1);
   } else {
+    display->setCursor(0, 56);
     display->print(mqttConnected ? "MQTT:OK" : "MQTT:--");
   }
   const char* ptrText = printerOnline ? "PTR:OK" : "PTR:--";
   int16_t x = SCREEN_WIDTH - (strlen(ptrText) * 6);
-  display->setCursor(x, 57);
+  display->setCursor(x, 56);
   display->print(ptrText);
 }
 

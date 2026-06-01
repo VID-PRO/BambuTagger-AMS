@@ -81,7 +81,8 @@ All RC522 share the same SPI bus (MOSI, MISO, SCK). Each has its own SS and RST 
    - **Adafruit SSD1306** by Adafruit (v2.5+)
    - **PubSubClient** by Nick O'Leary (v2.8+)
    - **ArduinoJson** by Benoit Blanchon (v6.x or v7.x)
-   - **mbedTLS** — bundled with ESP32 core, used for HKDF-SHA256
+    - **Adafruit BME280 Library** by Adafruit
+    - **mbedTLS** — bundled with ESP32 core, used for HKDF-SHA256
 
 3. Open `BambuTagger-AMS.ino`, select **ESP32 Dev Module** as board, and upload.
 
@@ -108,7 +109,7 @@ Available at `http://<esp32-ip>` on your network, or `http://192.168.4.1` in AP 
 ### Status Tab
 - **Merged Slot Status** — each slot shows AMS data (Type, Sub, Material, Color) + scanned tag data
 - **Color swatches** — 36x36px right-aligned per slot
-- **Tag info row** — `Tag: PLA Basic - GFA00 · C12E1FFF · 1000g/1000g`
+- **Tag info row** — `Tag: Bambu - PLA · C12E1FFF · 1000g/1000g`
 - **Printer AMS Cards** — all detected AMS units with tray grids
 - **Update Firmware** — one-click OTA from GitHub Releases
 
@@ -128,12 +129,12 @@ Available at `http://<esp32-ip>` on your network, or `http://192.168.4.1` in AP 
 ┌──────────────────────────────────┐
 │ Device Name                WiFi │
 ├──────────────────────────────────┤
-│ 1: PLA   #C0C0C0FF              │  ← AMS tray data
+│ 1: PLA   #C0C0C0FF              │  ← AMS tray data (1px gap)
 │ 2: empty                        │
 │ 3: empty                        │
 │ 4: empty                        │
 ├──────────────────────────────────┤
-│ MQTT:OK                   PTR:OK│
+│ 22C 45%                   PTR:OK│  ← big BME280 + PTR status
 └──────────────────────────────────┘
 ```
 
@@ -208,6 +209,24 @@ Reading uses NDEF TLV parsing:
 - URI identifier code byte prepended to URI string
 - Non-printable bytes terminate the URI scan
 - Spool ID extracted from URL path after last `/`
+
+### TigerTag (NTAG, binary)
+
+TigerTag v2.1 uses **NTAG** chips with a raw 80/144-byte binary format (pages 0x04-0x27):
+
+| Offset | Size | Field |
+|--------|------|-------|
+| +0 | 4 | ID TigerTag magic (0x5BF59264/0xBC0FCB97/0x6C41A2E1) |
+| +4 | 4 | Product ID |
+| +8 | 2 | Material ID → lookup table (PLA/PETG/ABS/TPU...) |
+| +14 | 2 | Brand ID |
+| +16 | 4 | Color 1 RGBA |
+| +20 | 3 | Measure (u24 BE) |
+| +24 | 2 | Nozzle Temp Min |
+| +26 | 2 | Nozzle Temp Max |
+| +76 | 3 | Measure Available |
+
+Known material IDs mapped from TigerTag database (PLA=38219, PETG=38256, ABS=20562...)
 
 ### Authentication & Reading
 - **Tag auto-detect**: SAK-based type detection (MIFARE 1K vs NTAG)

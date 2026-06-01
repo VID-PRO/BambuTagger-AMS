@@ -260,6 +260,15 @@ authOk2:
     if (info.detailedType[i] == ' ' || info.detailedType[i] == '\0') info.detailedType[i] = '\0';
     else break;
   }
+
+  // Use first word of detailed type as material name, tag label as "Bambu"
+  char typeName[32];
+  strncpy(typeName, info.detailedType, sizeof(typeName) - 1);
+  typeName[sizeof(typeName) - 1] = '\0';
+  char* sp = strchr(typeName, ' ');
+  if (sp) *sp = '\0';
+  if (typeName[0]) strncpy(info.materialType, typeName, sizeof(info.materialType) - 1);
+  strcpy(info.detailedType, "Bambu");
   // Serial.printf("Slot %d: block4 raw=", slot);
   // for (int i = 0; i < 16; i++) Serial.printf("%02X ", dataBuffer[4 * 16 + i]);
   // Serial.printf(" sub='%s'\n", info.detailedType);
