@@ -172,6 +172,16 @@ OTA progress shown on OLED with header/footer preserved:
 ## Tag Format & Reading
 
 ### Bambu Lab (MIFARE Classic 1K)
+Tag: `Bambu - PLA · C12E1FFF · 1000g/1000g`
+
+### SpoolEase (NTAG, NDEF URI)
+Tag: `SpoolEase - PLA · 000000FF · 1000g/1036g`
+
+### TigerTag (NTAG, binary v2.1)
+Tag: `TigerTag - ASA-AF · F078B4FF · 1000g/1000g`
+
+### OpenSpool (NTAG, NDEF JSON)
+Tag: `OpenSpool - ASA-AF · F078B4FF · 1000g/1000g`
 
 Bambu Lab uses **MIFARE Classic 1K** tags with fixed block offsets:
 
