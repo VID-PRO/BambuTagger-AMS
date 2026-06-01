@@ -2,6 +2,10 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include "web_server.h"
+
+extern float bmeTemp;
+extern float bmeHumidity;
+extern bool bmeOk;
 #include "index_html.h"
 #include "favicon.h"
 
@@ -63,6 +67,11 @@ void WebInterface::handleStatus() {
   doc["mqttConnected"] = mqttStatus;
   doc["printerOnline"] = printerOnlineStatus;
   doc["mqttEnabled"] = config->mqttEnabled;
+  doc["bmeOk"] = bmeOk;
+  if (bmeOk) {
+    doc["temperature"] = bmeTemp;
+    doc["humidity"] = bmeHumidity;
+  }
 
   JsonObject amsInfo = doc.createNestedObject("detectedAms");
   amsInfo["bits"] = bambuPrinter ? bambuPrinter->getAmsExistBits() : 0;

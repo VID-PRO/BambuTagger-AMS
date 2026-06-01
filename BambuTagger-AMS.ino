@@ -19,6 +19,7 @@
 #include <DNSServer.h>
 #include <HTTPClient.h>
 #include <Update.h>
+#include <Adafruit_BME280.h>
 
 #include "config.h"
 #include "rfid_manager.h"
@@ -34,6 +35,10 @@ DisplayManager displayManager;
 WebInterface webInterface;
 BambuPrinter bambuPrinter;
 DNSServer dnsServer;
+Adafruit_BME280 bme;
+float bmeTemp = 0;
+float bmeHumidity = 0;
+bool bmeOk = false;
 
 bool wifiConnected = false;
 bool apMode = false;
@@ -62,6 +67,14 @@ void setup() {
 
   Serial.print(F("Device: "));
   Serial.println(cfg.deviceName);
+
+  bmeOk = bme.begin(0x76);
+  if (!bmeOk) bmeOk = bme.begin(0x77);
+  if (bmeOk) {
+    Serial.println(F("BME280 sensor found"));
+  } else {
+    Serial.println(F("BME280 not found"));
+  }
 
   ledManager.begin();
   ledManager.setAllLeds(LED_IDLE);
@@ -127,6 +140,13 @@ void loop() {
     }
   }
 
+  static unsigned long lastBmeRead = 0;
+  if (bmeOk && now - lastBmeRead > 5000) {
+    lastBmeRead = now;
+    bmeTemp = bme.readTemperature();
+    bmeHumidity = bme.readHumidity();
+  }
+
   if (now - lastLedUpdate > 200) {
     lastLedUpdate = now;
     updateLedStatus();
@@ -141,7 +161,7 @@ void loop() {
     }
     bool mqttOk = bambuPrinter.isConnected();
     displayManager.update(displaySlots, wifiConnected, mqttOk,
-                          &bambuPrinter, cfg.amsUnit);
+                          &bambuPrinter, cfg.amsUnit, bmeTemp, bmeHumidity);
   }
 
   if (now - lastMqttUpdate > (cfg.mqttUpdateIntervalMs > 0 ? cfg.mqttUpdateIntervalMs : 5000)) {

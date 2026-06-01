@@ -1,298 +1,264 @@
-# <img alt="logo" src="Logo/bambutagger.png" height="36" /> BambuTagger-Touch
+# <img alt="logo" src="Logo/bambutagger.png" height="36" />  BambuTagger-AMS
 
-An ESP32-based tool for reading, cloning, and writing Bambu Lab filament spool RFID tags.  
-Designed for the **Guition JC8048W550** 5.0" 800×480 capacitive-touch display with a dedicated RC522 RFID module on the HSPI bus.
+Multi-spool NFC tag reader for Bambu Lab printers. Reads 4 Bambu Lab filament spool tags via RC522, displays live printer AMS tray data over MQTT, and sends RFID tag data to the printer/BMCU. Fully configurable via web interface with automatic AP fallback and OTA firmware updates.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/G8M220JASY)
 
 <p align="center">
-<img alt="BambuTagger" src="Pics/BambuTagger-Touch.pmg" width="400">
+<img src="Pics/printer.png" />
+<img src="Pics/status.png" />
+<img src="Pics/pcb.png" />
 </p>
-
----
 
 ## Features
 
-| Category | Details |
-|----------|---------|
-| **RFID** | Read, clone, and write Bambu Lab MIFARE Classic 1K spool tags |
-| **Magic card support** | Gen1A (0x40/0x43 backdoor), Gen2 (CUID/FUID implicit), Gen3 (APDU), Gen4 (GTU/GDM CF-command) |
-| **Key derivation** | HKDF-SHA256 with Bambu Lab salt — no hardcoded keys |
-| **Touch UI** | Full 800×480 TFT with header (logo, title, WiFi icon), subheader (contextual title), footer, and touch-friendly buttons |
-| **Web UI** | Files / Dumps / Status / WiFi / BambuMan tabs |
-| **GitHub browser** | Browse & download dump files on-device via touch |
-| **OTA updates** | Check & flash latest release from GitHub with live progress bar |
-| **BambuMan catalog** | On-device browser + web search; sync downloads full ZIP and extracts data.bin files to FAT |
-| **File management** | Upload `.bin` dumps, browse FAT directory tree, delete files 
-| **WiFi** | Auto-STA on boot; AP fallback `BambuTagger` / `bambu1234`; signal-strength icon in header |
-| **Serial debug** | Timestamped output; disable with `#define DEBUG_SERIAL 0` |
-
----
+- **4x RC522** on shared SPI bus polling MIFARE Classic 1K + NTAG tags via `MFRC522-spi-i2c-uart-async`
+- **Multi-tag auto-detect** — MIFARE Classic 1K (Bambu Lab) or NTAG (SpoolEase), auto-routed to correct parser
+- **HKDF-SHA256 key derivation** — derives per-sector MIFARE keys from the tag UID using Bambu's KDF salt
+- **Live printer AMS sync** — reads tray data (material, color, type) from the printer over MQTT
+- **Bambu BMCU support** — sends `ams_filament_setting` with correct `tray_type`, `tray_color`, `nozzle_temp_min/max`
+- **NTAG / SpoolEase** — reads NDEF URI records, extracts spool data from `tag.spoolease.io` URLs
+- **TigerTag binary parser** — native TigerTag v2.1 protocol support (ID TigerTag magic detection, material, color, weight, temps)
+- **OpenSpoolTag detection** — domain-based auto-detection for community tag formats
+- **Web interface** — 3-tab SPA: Status (merged slots + Sub type + color swatches), Printer Config, WiFi Config
+- **OLED display** — boot splash, live AMS tray data, OTA progress bar, BME280 temp/humidity, MQTT+PTR status
+- **4x WS2812 LEDs** — per-slot color from printer AMS tray data (live MQTT sync)
+- **Boot splash**: 2-second logo display from `Logo/splash.png`
+- **MQTT bridge** — subscribes to printer status, publishes `ams_filament_setting` commands
+- **Auto AP fallback** — captive portal on `192.168.4.1` when WiFi is unavailable
+- **OTA updates** — one-click firmware update from GitHub Releases, OLED progress bar, web overlay with status
+- **GitHub Actions** — CI build on commit, merged binary + OTA binary release on version tags
 
 ## Hardware
 
-### Bill of Materials
+- **ESP32** Dev Module
+- **4x RC522** RFID/NFC readers (SPI, shared bus)
+- **4x WS2812** addressable LEDs (daisy-chained, single data pin)
+- **128x64 OLED** SSD1306 I2C display
+- **BME280** temperature/humidity sensor (I2C, shared bus with OLED)
 
-| Component | Notes | Buy |
-|-----------|-------|-----|
-| **Guition JC8048W550** | ESP32-S3-N16R8, 5" 800×480 ST7262 RGB + GT911 touch | https://de.aliexpress.com/item/1005006715794302.html |
-| **RC522** RFID module | SPI interface | https://de.aliexpress.com/item/1005006907801802.html |
-| 2x JST 1.25-4p cables | 4pin, 20cm |   |
+### Wiring
 
+| Component       | ESP32 Pin |
+|-----------------|-----------|
+| **SPI MOSI**    | GPIO 23 |
+| **SPI MISO**    | GPIO 19 |
+| **SPI SCK**     | GPIO 18 |
+| RC522 #1 SS     | GPIO 13 |
+| RC522 #2 SS     | GPIO 12 |
+| RC522 #3 SS     | GPIO 14 |
+| RC522 #4 SS     | GPIO 27 |
+| RC522 #1 RST    | GPIO 26 |
+| RC522 #2 RST    | GPIO 25 |
+| RC522 #3 RST    | GPIO 33 |
+| RC522 #4 RST    | GPIO 32 |
+| **WS2812 data** | GPIO 15 |
+| **OLED SDA**    | GPIO 21 |
+| **OLED SCL**    | GPIO 22 |
 
-### Pin Assignments
+All RC522 share the same SPI bus (MOSI, MISO, SCK). Each has its own SS and RST pin.
 
-**Display (parallel RGB565 via ST7262)**
+### Slot Mapping
 
-| Signal | GPIO | Signal | GPIO | Signal | GPIO | Signal | GPIO |
-|--------|------|--------|------|--------|------|--------|------|
-| R0 | 8 | G0 | 5 | B0 | 45 | HSYNC | 39 |
-| R1 | 3 | G1 | 6 | B1 | 48 | VSYNC | 41 |
-| R2 | 46 | G2 | 7 | B2 | 47 | DE | 40 |
-| R3 | 9 | G3 | 15 | B3 | 21 | PCLK | 42 |
-| R4 | 1 | G4 | 16 | B4 | 14 | Backlight | 2 |
-| | | G5 | 4 | | | | |
+| RC522 # | SS Pin | Slot | WS2812 Pixel |
+|---------|--------|------|--------------|
+| 1 | 13 | 1 | 0 |
+| 2 | 12 | 2 | 1 |
+| 3 | 14 | 3 | 2 |
+| 4 | 27 | 4 | 3 |
 
-**Touch (GT911 via I2C)**
+## Software Setup (Arduino IDE)
 
-| Signal | GPIO |
-|--------|------|
-| SDA | 19 |
-| SCL | 20 |
-| RST | 38 |
-| INT | 18 (unused in code; shared with RC522 CS) |
+1. Install **ESP32 board package**:  
+   File → Preferences → Additional Board Manager URLs:  
+   `https://espressif.github.io/arduino-esp32/package_esp32_index.json`  
+   Then Tools → Board → Boards Manager → search "ESP32" → install.
 
-**RC522 (SPI on HSPI bus)**
+2. Install required libraries via **Tools → Manage Libraries**:
+   - **MFRC522-spi-i2c-uart-async** — multi-reader SPI sharing (not standard MFRC522)
+   - **Adafruit NeoPixel** by Adafruit (v1.12+)
+   - **Adafruit GFX Library** by Adafruit (v1.11+)
+   - **Adafruit SSD1306** by Adafruit (v2.5+)
+   - **PubSubClient** by Nick O'Leary (v2.8+)
+   - **ArduinoJson** by Benoit Blanchon (v6.x or v7.x)
+   - **mbedTLS** — bundled with ESP32 core, used for HKDF-SHA256
 
-| Signal | GPIO |
-|--------|------|
-| CS / SDA | 18 |
-| RST | 17 |
-| SCK | 12 |
-| MOSI | 11 |
-| MISO | 13 |
-| 3.3V | 3.3V |
-| GND | GND |
+3. Open `BambuTagger-AMS.ino`, select **ESP32 Dev Module** as board, and upload.
 
----
+## WiFi & AP Mode
 
-## Software
+On first boot (or if saved WiFi credentials are invalid), the device automatically opens an access point:
 
-### Required Libraries (Arduino Library Manager)
+| Scenario | Behavior |
+|----------|----------|
+| No WiFi configured | Opens AP immediately |
+| WiFi connection fails | Opens AP after 15 seconds |
+| AP active, credentials exist | Retries STA connection every 30 seconds |
+| STA connects while AP active | Closes AP, switches to normal mode |
 
-| Library | Version |
-|---------|---------|
-| `LovyanGFX` | ≥ 1.x |
-| `makerspaceleiden/rfid` (MFRC522) | latest |
-| `ArduinoJson` | ≥ 7.x |
-| `miniz` | Built into ESP32 Arduino core |
-| `mbedTLS` | Built into ESP32 Arduino core |
-
-### Board Settings (Arduino IDE)
-
-| Setting | Value |
-|---------|-------|
-| Board | **ESP32S3 Dev Module** |
-| Partition Scheme | **Custom** (select `partitions.csv`) |
-| Flash Size | **16 MB** (OPI) |
-| PSRAM | **OPI PSRAM** |
-| Upload Speed | 921600 |
-| Monitor Speed | **115200** |
-
-> The sketch calls `FFat.begin(true)` — formats the FAT partition on first boot.
-
-#### Custom partition table
-
-Copy `partitions.csv` into the Arduino ESP32 core's partitions directory:
-
-```
-copy partitions.csv ^
-   %LOCALAPPDATA%\Arduino15\packages\esp32\hardware\esp32\<version>\tools\partitions\
-```
-
-Then select **Tools → Partition Scheme → partitions**.
-
-| Partition | Offset | Size | Notes |
-|-----------|--------|------|-------|
-| nvs | `0x9000` | 20 KB | WiFi creds, GitHub token |
-| otadata | `0xE000` | 8 KB | OTA slot bookkeeping |
-| **app0** | `0x10000` | **1408 KB** | +128 KB vs default_ffat |
-| **app1** | `0x170000` | **1408 KB** | +128 KB vs default_ffat |
-| **ffat** | `0x2D0000` | **1152 KB** | Dump file storage |
-
----
-
-## Touch UI
-
-### Navigation
-
-All interaction is via tap:
-
-- **Tap a button** to select an action
-- **Tap a list entry** in any browser (GitHub, BambuMan, FAT) to navigate into a folder or select a file
-- **Tap the header** (top 64 px, navy bar) on any screen to return instantly to the main menu
-- **Tap `< BACK`** (list row) in GitHub, BambuMan, or Write Dump sub-directories to go up one level
-- **Swipe vertically** or **tap the scrollbar** to scroll lists; tap above/below the thumb to jump
-
-### Main Menu
-
-```
-┌──────────────────────────────────────────────┐
-│  Logo    BambuTagger                 Wi-Fi   │  ← header (64 px)
-│          Menu                                │  ← subheader (44 px)
-├──────────────────────────────────────────────┤
-│                                              │
-│                Read Tag                      │
-│                                              │
-│               Clone Tag                      │
-│                                              │
-│              Write Dump                      │
-│                                              │
-│              GitHub Lib                      │
-│                                              │
-│              BambuMan                        │
-│                                              │
-│              Tag Tool                        │
-│                                              │
-│              System                          │
-│                                              │
-│              OTA Update                      │
-│                                              │
-├──────────────────────────────────────────────┤
-│     (c) 2026 by BambuTagger    v1.8.0        │  ← footer (24 px)
-└──────────────────────────────────────────────┘
-```
-
-### Screen Layout
-
-Every screen has:
-- **Header** – 64 px navy bar with 65×64 logo, centred "BambuTagger" title, and WiFi signal-strength icon (green arcs) or "AP" text
-- **Subheader** – 44 px dark-grey bar with contextual title (e.g. "Tag Info", "Write Tag", "BambuMan Library")
-- **Breadcrumb** – Light-grey path text below the subheader in browser screens when navigating subdirectories
-- **Footer** – 24 px navy bar with "(c) 2026 by VID-PRO" centred and version number at the right edge
-
-All buttons use centred text (`MC_DATUM`), and inactive list entries are `TFT_DARKGREY`. Scrollbars (30 px wide, proportional white thumb) appear in browsers when content overflows. Tap or swipe the scrollbar to navigate long lists.
-
-The BambuMan Library shows two side-by-side buttons at the top level: **Sync Catalog** (quick, central-directory only) and **Full Download** (extracts all data.bin files to FAT).
-
-### Menu sections
-
-#### Read Tag
-Hold a spool near the RC522. The sketch derives MIFARE keys from the tag UID using HKDF-SHA256, authenticates all 16 sectors, and displays filament type, colour, and weight.
-
-#### Clone Tag
-Reads the source tag sector-by-sector into RAM, then prompts for the destination tag. Writes every block using automatic magic-card detection (Gen1A → Gen4 → Gen3 → Gen2 → normal auth).
-
-#### Write Dump
-Browse the dump files stored on FAT using the on-device directory browser. Navigate sub-directories with the `< BACK` row; a breadcrumb path is shown below the subheader. Select a `.bin` file, present a target tag, and every block is written with the same detection strategy.
-
-#### GitHub Lib
-Browse the [Bambu Lab RFID Library](https://github.com/queengooborg/Bambu-Lab-RFID-Library) directly on-device. Requires WiFi. Navigate with `< BACK` row; a breadcrumb path is shown below the subheader. Files are saved to FAT mirroring the repository structure.
-
-#### BambuMan Lib
-Browse the [bambuman.ee](https://bambuman.ee/tags) community tag database in a 4-level hierarchy (Material → Type → Color → UID). A breadcrumb (e.g. `PLA > PLA Basic > Black`) is shown below the subheader. Two sync options: **Sync Catalog** (quick, catalog only via Range request) or **Full Download** (extracts all `data.bin` files to FAT).
-
-#### Tag Tool
-Manage Gen4 (GTU/GDM) and Gen2 (CUID/FUID) magic card backdoors — seal, unlock, or lock block 0. Displays current card mode details below the subheader.
-
-#### System
-Shows system status: WiFi mode, SSID, IP, free heap, FAT usage, and tag dump count. Includes a **Delete All Tags** button to remove all dumps and empty directories.
-
-#### OTA Update
-Checks GitHub releases for a newer firmware version and flashes it over-the-air.
-
----
+- **SSID**: Device name (default: `BambuTagger-AMS`)
+- **Security**: Open (no password)
+- **IP**: `192.168.4.1`
+- **Captive portal**: DNS redirects all domains to the config page
 
 ## Web Interface
 
-Open a browser to the ESP32's IP (shown in the header).
+Available at `http://<esp32-ip>` on your network, or `http://192.168.4.1` in AP mode.
 
-| Tab | Description |
-|-----|-------------|
-| **Files** | Navigate FAT directory tree, upload/delete `.bin` files, trigger tag writes |
-| **Dumps** | Browse GitHub repository, download files to FAT |
-| **BambuMan** | Sync catalog, search by material/colour, fetch & write tags |
-| **System** | WiFi mode, IP, heap, FAT usage, tag dump count, delete all tags |
-| **OTA** | Check for and apply firmware updates |
-| **Config** | WiFi scan + connect, GitHub API token management |
+### Status Tab
+- **Merged Slot Status** — each slot shows AMS data (Type, Sub, Material, Color) + scanned tag data
+- **Color swatches** — 36x36px right-aligned per slot
+- **Tag info row** — `Tag: PLA Basic - GFA00 · C12E1FFF · 1000g/1000g`
+- **Printer AMS Cards** — all detected AMS units with tray grids
+- **Update Firmware** — one-click OTA from GitHub Releases
 
-Full REST API documentation is available in the source header.
+### Printer Config Tab
+- Printer IP, Port (default 8883), Access Code, Serial Number
+- **AMS Unit selector** (A/B/C/D)
 
----
+### WiFi Config Tab
+- SSID, Password, Device Name
 
-## REST API
+### Footer
+- Sticky footer: `© 2026 by VID-PRO` with link to [www.vid-pro.de](https://www.vid-pro.de)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/status` | WiFi mode, SSID, IP, selected dump path, FAT usage, `app_state` |
-| `POST` | `/api/wifi` | `{"ssid":"…","pass":"…"}` — connect & save |
-| `GET` | `/api/scan` | Array of nearby SSIDs |
-| `GET` | `/api/list?path=…` | GitHub directory listing |
-| `POST` | `/api/download` | `{"url":"…","path":"…"}` — download raw file to FAT |
-| `GET` | `/api/files?dir=<path>` | FAT directory listing |
-| `POST` | `/api/delete` | `{"file":"…"}` — delete a FAT file or empty directory |
-| `POST` | `/api/deleteall` | Delete all dump files and empty directories |
-| `POST` | `/api/writetag` | `{"path":"…"}` — load dump and start tag-write |
-| `POST` | `/api/upload` | `multipart/form-data` — upload a `.bin` |
-| `GET` | `/api/token` | Return saved GitHub token (masked) |
-| `POST` | `/api/token` | Save GitHub API token to NVS |
-| `POST` | `/api/bm/sync` | Download full bambuman.ee ZIP, extract data.bin files to FAT, build catalog |
-| `GET` | `/api/bm/catalog` | Stream `/BM/catalog.json` |
-| `GET` | `/api/bm/fetch?uid=…` | Fetch `data.bin` from bambuman.ee |
-| `GET` | `/api/ota/check` | Compare running firmware to latest GitHub release |
-| `POST` | `/api/ota/update` | Download and flash latest app binary |
-
----
-
-## FAT Directory Structure
+## OLED Display (128x64)
 
 ```
-/
-  BM/
-    catalog.json             — bambuman.ee catalog index
-  PLA/
-    PLA Basic/
-      Black/
-        3AD82DAD.bin         — extracted dump
-  PETG/
-    PETG Basic/
-      Black/
-        A1B2C3D4.bin         — extracted dump
-  ...
+┌──────────────────────────────────┐
+│ Device Name                WiFi │
+├──────────────────────────────────┤
+│ 1: PLA   #C0C0C0FF              │  ← AMS tray data
+│ 2: empty                        │
+│ 3: empty                        │
+│ 4: empty                        │
+├──────────────────────────────────┤
+│ MQTT:OK                   PTR:OK│
+└──────────────────────────────────┘
 ```
 
-WiFi credentials and GitHub API token are stored in ESP32 NVS (not FAT).
+OTA progress shown on OLED with header/footer preserved:
+"OTA Update" → "Downloading..." → "Flashing... 45%" → auto-reboot
 
----
+## Printer Communication
 
-## Building & Flashing
+### Subscribe
+- **Topic**: `device/<serial>/report`
+- **Data**: `push_status` (periodic, ~3KB), `get_version` responses
 
-### Arduino IDE
+### Publish
+- **Topic**: `device/<serial>/request`
+- **`ams_filament_setting`** — structure:
+  ```json
+  {
+    "print": {
+      "sequence_id": "0",
+      "command": "ams_filament_setting",
+      "ams_id": 0,
+      "tray_id": 0,
+      "tray_info_idx": "GFA00",
+      "tray_color": "RRGGBBFF",
+      "nozzle_temp_min": 190,
+      "nozzle_temp_max": 230,
+      "tray_type": "PLA"
+    }
+  }
+  ```
+- `tray_type` derived from filament index prefix (GFA→PLA, GFG→PETG, etc.)
+- `tray_color` forced to RRGGBBFF format
+- `nozzle_temp_min/max` from tag block 6
 
-1. Install **ESP32 board package** (≥ 3.x).
-2. Install libraries: `LovyanGFX`, `makerspaceleiden/rfid`, `ArduinoJson`.
-3. Select **Board → ESP32S3 Dev Module**, Flash Size **16 MB (OPI)**, PSRAM **OPI PSRAM**.
-4. Copy `partitions.csv` into the ESP32 core's `tools/partitions/` directory.
-5. Select **Partition Scheme → partitions**.
-6. Upload.
+## Tag Format & Reading
 
-### GitHub Actions
+### Bambu Lab (MIFARE Classic 1K)
 
-Push a `v*` tag to trigger an automated release build (`GHActions/release.yml`).
+Bambu Lab uses **MIFARE Classic 1K** tags with fixed block offsets:
 
----
+| Block | Content |
+|-------|---------|
+| 0 | UID (4 bytes) |
+| 1 | Variant ID + Material index (e.g. "GFA00") |
+| 2 | Filament type short name |
+| 4 | Detailed type string (e.g. "PLA Basic") |
+| 5 | RGBA color (bytes 0-3) + spool weight LE (bytes 4-5) |
+| 6 | Nozzle temps (bytes 8-11 LE) |
 
-## Credits & References
+### SpoolEase (NTAG)
 
-- Dump files: [queengooborg/Bambu-Lab-RFID-Library](https://github.com/queengooborg/Bambu-Lab-RFID-Library)
-- Community tag database: [bambuman.ee](https://bambuman.ee/tags)
-- [RFID-Tag-Guide](https://github.com/Bambu-Research-Group/RFID-Tag-Guide)
-- Display library: [LovyanGFX](https://github.com/lovyan03/LovyanGFX)
-- RFID library: [makerspaceleiden/rfid](https://github.com/makerspaceleiden/rfid)
+SpoolEase uses **NTAG** tags with NDEF URI records. The URL contains encoded spool data:
 
----
+`https://tag.spoolease.io/S1/?TG=...&M=PLA&CC=000000FF&SC=GFL99&WL=1000&WE=179&WF=1215&NN=190&NX=240`
 
-## License
+URL parameters parsed and mapped to SpoolInfo:
 
-This project is provided as-is for personal and educational use.  
-Bambu Lab trademarks and spool tag data formats are the property of Bambu Lab.
+| Param | Field | Description |
+|-------|-------|-------------|
+| `M=` | display type | e.g. "PLA", "PETG" |
+| `SC=` | `materialType` | Bambu index for MQTT (e.g. "GFL99") |
+| `CC=` | `colorHex` | RGBA hex (e.g. "000000FF") |
+| `B=` | `manufacturer` | Brand name (e.g. "Jayo") |
+| `WL=` | `remainingGrams` | Remaining filament weight |
+| `WE=` | empty spool | Empty spool weight |
+| `WF=` | full spool | `totalGrams = WF - WE` |
+| `NN=` | `nozzleTempMin` | Min nozzle temp °C |
+| `NX=` | `nozzleTempMax` | Max nozzle temp °C |
+
+Reading uses NDEF TLV parsing:
+- NDEF Message TLV (0x03) → NDEF record with TNF=WellKnown, type="U"
+- URI identifier code byte prepended to URI string
+- Non-printable bytes terminate the URI scan
+- Spool ID extracted from URL path after last `/`
+
+### Authentication & Reading
+- **Tag auto-detect**: SAK-based type detection (MIFARE 1K vs NTAG)
+- **HKDF-SHA256** derives 16 per-sector Key A/B from 4-byte UID
+- Bambu KDF salt/info vectors from reverse-engineered firmware
+- Falls back to default key `0xFF...FF` for blank sectors
+- Failed auth re-wakes tag via antenna power-cycle
+- Dead readers auto-skipped (version register 0x92/0x91/0xB2 check)
+- SPI: 1 MHz via `MFRC522_SPI`
+- NTAG: page-level reads (page+=4, 4 pages per MIFARE_Read)
+
+### Filament Type Mapping
+| Prefix | Type |
+|--------|------|
+| GFA-GFE, GFL | PLA |
+| GFG | PETG |
+| GFH, GFI | ABS |
+| GFJ | ASA |
+| GFK | TPU |
+
+## OTA Updates
+
+- **Button**: "Update Firmware" on Status page (shows "Update to vX.Y.Z" or "up to date")
+- **Overlay**: full-screen progress overlay with spinner, status text, progress bar
+- **Endpoint**: `POST /api/ota` triggers update, `GET /api/ota-check` checks for newer version
+- Downloads latest `.ino.bin` from GitHub Releases, flashes via `Update.h`
+- 3 retry attempts with 5s stall detection, fresh HTTP client per attempt
+- OLED shows "Checking version..." → "Downloading..." → "Flashing..." with percentage
+- Device auto-reboots after successful flash, web UI auto-reloads
+
+## CI / CD
+
+Workflow at `GHActions/release.yml`:
+- **On push/PR**: compiles sketch, uploads artifacts
+- **On release tag**: creates merged flash binary + OTA binary, attaches to GitHub Release
+- Arduino cache for fast rebuilds, pinned esp32:esp32@3.0.7 core
+
+## Configuration Defaults
+
+| Setting | Default |
+|---------|---------|
+| WiFi SSID | (empty) |
+| WiFi Password | (empty) |
+| Device Name | BambuTagger-AMS |
+| Printer IP | 192.168.1.100 |
+| Printer Port | 8883 |
+| Access Code | (empty) |
+| Printer Serial | (empty) |
+| AMS Unit | A (0) |
+| MQTT Enabled | No |
+| MQTT Update Interval | 5000 ms |
+| RFID Poll Interval | 100 ms |
+| Firmware Version | 1.0.3 |
+

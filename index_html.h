@@ -99,6 +99,7 @@ border-top-color:#58a6ff;border-radius:50%;animation:spin .8s linear infinite}
 <div><span class="status-dot" id="wifiDot"></span><span id="wifiStatus">WiFi: --</span></div>
 <div><span class="status-dot" id="mqttDot"></span><span id="mqttStatus">MQTT: --</span></div>
 <div><span class="status-dot" id="printerDot"></span><span id="printerStatus">Printer: --</span></div>
+<div style="margin-left:auto"><span id="bmeData" style="font-size:12px;color:#8b949e"></span></div>
 </div>
   <div class="actions">
   <button class="btn btn-primary" onclick="scanAll()">Scan All Slots</button>
@@ -217,6 +218,8 @@ document.getElementById('mqttStatus').textContent='MQTT: '+(data.mqttConnected?'
 document.getElementById('mqttDot').className='status-dot '+(data.mqttConnected?'led-green':'led-red');
 document.getElementById('printerStatus').textContent='Printer: '+(data.printerOnline?'Online':'Offline');
 document.getElementById('printerDot').className='status-dot '+(data.printerOnline?'led-green':'led-red');
+if(data.bmeOk){document.getElementById('bmeData').textContent='\u2600 '+data.temperature.toFixed(1)+'C \uD83D\uDCA7 '+data.humidity.toFixed(0)+'%'}
+else{document.getElementById('bmeData').textContent=''}
 if(data.detectedAms){
 var ams=data.detectedAms,labels=['A','B','C','D'];
 

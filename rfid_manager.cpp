@@ -149,6 +149,7 @@ bool RfidManager::readNtag(uint8_t slot, SpoolInfo &info) {
   bool success = false;
   if (piccType == MFRC522::PICC_TYPE_MIFARE_1K || piccType == MFRC522::PICC_TYPE_MIFARE_4K) {
     success = authenticateAndRead(slot, info, reader->uid.uidByte);
+    if (!success) success = readNtagPages(slot, info); // fallback: NDEF on MIFARE
   } else if (piccType == MFRC522::PICC_TYPE_MIFARE_UL || piccType == MFRC522::PICC_TYPE_MIFARE_UL) {
     // NTAG/Ultralight fallback — try reading without auth
     success = readNtagPages(slot, info);

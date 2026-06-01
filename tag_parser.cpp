@@ -26,11 +26,115 @@ bool TagParser::parse(uint8_t* data, uint16_t length, const char* uid, SpoolInfo
     return false;
   }
 
+  // Try TigerTag binary format first (NTAG pages 4+)
+  if (parseTigerTag(data, length, uid, info)) return true;
+
   if (data[0] == BAMBU_TAG_MAGIC && data[1] == BAMBU_TAG_VERSION) {
     return parseBambuTLV(data + BAMBU_HEADER_SIZE, length - BAMBU_HEADER_SIZE, info);
   }
 
   return parseRawNTAG(data, length, uid, info);
+}
+
+static uint32_t readU32BE(const uint8_t* d, int off) {
+  return ((uint32_t)d[off] << 24) | ((uint32_t)d[off+1] << 16) | ((uint32_t)d[off+2] << 8) | d[off+3];
+}
+static uint16_t readU16BE(const uint8_t* d, int off) {
+  return ((uint16_t)d[off] << 8) | d[off+1];
+}
+
+bool TagParser::parseTigerTag(uint8_t* data, uint16_t length, const char* uid, SpoolInfo &info) {
+  if (length < 48) return false; // need at least header fields
+
+  uint32_t magic = readU32BE(data, 0);
+  if (magic != 0x5BF59264 && magic != 0xBC0FCB97 && magic != 0x6C41A2E1) return false;
+
+  // ID TigerTag → detect type
+  const char* ttLabel = "TigerTag";
+  if (magic == 0xBC0FCB97) ttLabel = "TigerTag+";
+  else if (magic == 0x6C41A2E1) ttLabel = "TigerTag Init";
+
+  // Color 1 RGBA at offset +16
+  snprintf(info.colorHex, sizeof(info.colorHex), "%02X%02X%02X%02X",
+           data[16], data[17], data[18], data[19]);
+
+  // Material ID at offset +8 (u16 BE) — map known IDs to names
+  uint16_t matId = readU16BE(data, 8);
+  const char* matName = nullptr;
+  switch (matId) {
+    case 38219: matName = "PLA"; break;
+    case 24629: matName = "PLA HS"; break;
+    case 46591: matName = "PLA+"; break;
+    case 10602: matName = "PLA Silk"; break;
+    case 8345:  matName = "PLA+Silk"; break;
+    case 48310: matName = "PLA-CF"; break;
+    case 9456:  matName = "PLA Marble"; break;
+    case 48001: matName = "PLA Wood"; break;
+    case 38256: matName = "PETG"; break;
+    case 57469: matName = "PETG HF"; break;
+    case 7649:  matName = "PETG HS"; break;
+    case 55418: matName = "PETG-CF"; break;
+    case 34944: matName = "PETG-GF"; break;
+    case 20562: matName = "ABS"; break;
+    case 49074: matName = "ABS-GF"; break;
+    case 425:   matName = "ABS-CF"; break;
+    case 43518: matName = "TPU"; break;
+    case 48047: matName = "TPU HS"; break;
+    case 12844: matName = "ASA"; break;
+    case 12878: matName = "CoPE"; break;
+    case 30458: matName = "PC"; break;
+    case 59328: matName = "PA"; break;
+    case 39944: matName = "PA-CF"; break;
+    case 30594: matName = "PA-GF"; break;
+    case 30884: matName = "PP"; break;
+    case 50497: matName = "PP-CF"; break;
+    case 42962: matName = "PP-GF"; break;
+    case 9483:  matName = "PVA"; break;
+    case 34049: matName = "BVOH"; break;
+    case 26029: matName = "HIPS"; break;
+    case 3368:  matName = "PC-ABS"; break;
+    case 15041: matName = "PCTG"; break;
+    case 11053: matName = "PET-CF"; break;
+    case 9691:  matName = "EVA"; break;
+    default: break;
+  }
+  if (matName)
+    snprintf(info.materialType, sizeof(info.materialType), "%s", matName);
+  else
+    snprintf(info.materialType, sizeof(info.materialType), "%d", matId);
+
+  // Brand ID at offset +14 (u16 BE) — store in manufacturer
+  uint16_t brandId = readU16BE(data, 14);
+  snprintf(info.manufacturer, sizeof(info.manufacturer), "%d", brandId);
+
+  // Detailed type = tag type label
+  snprintf(info.detailedType, sizeof(info.detailedType), "%s", ttLabel);
+
+  // Measure at offset +20 (u24 BE)
+  info.totalGrams = ((uint32_t)data[20] << 16) | ((uint32_t)data[21] << 8) | data[22];
+
+  // Measure Available at offset +76 (u24 BE)
+  if (length >= 80) {
+    info.remainingGrams = ((uint32_t)data[76] << 16) | ((uint32_t)data[77] << 8) | data[78];
+  } else {
+    info.remainingGrams = info.totalGrams;
+  }
+
+  // Nozzle temps at offset +24, +26 (u16 BE)
+  info.nozzleTempMin = readU16BE(data, 24);
+  info.nozzleTempMax = readU16BE(data, 26);
+
+  // Custom message at offset +48 (28 bytes UTF-8) — stored in manufacturer append
+  if (length >= 76) {
+    char msg[29];
+    memcpy(msg, data + 48, 28);
+    msg[28] = '\0';
+    for (int i = 27; i >= 0; i--) { if (msg[i] == ' ' || msg[i] == '\0') msg[i] = '\0'; else break; }
+    if (msg[0]) { strncat(info.manufacturer, " ", sizeof(info.manufacturer) - strlen(info.manufacturer) - 1); strncat(info.manufacturer, msg, sizeof(info.manufacturer) - strlen(info.manufacturer) - 1); }
+  }
+
+  info.tagReadSuccess = true;
+  return true;
 }
 
 bool TagParser::parseBambuTLV(uint8_t* data, uint16_t length, SpoolInfo &info) {
@@ -152,6 +256,15 @@ bool TagParser::parseRawNTAG(uint8_t* data, uint16_t length, const char* uid, Sp
             }
             info.detailedType[outPos] = '\0';
 
+            // Detect tag type from URL domain
+            const char* tagLabel = "SpoolTag";
+            bool isSpoolEase = (strstr(info.detailedType, "tag.spoolease.io") != nullptr);
+            if (isSpoolEase) tagLabel = "SpoolEase";
+            else if (strstr(info.detailedType, "tigertag")) tagLabel = "TigerTag";
+            else if (strstr(info.detailedType, "openspooltag")) tagLabel = "OpenSpoolTag";
+
+            // Only parse URL params for SpoolEase format
+            if (isSpoolEase) {
             // Parse SpoolEase URL parameters: M=type CC=color SC=material etc.
             char seType[16] = "";
             char seMat[16] = "";
@@ -204,13 +317,20 @@ bool TagParser::parseRawNTAG(uint8_t* data, uint16_t length, const char* uid, Sp
             Serial.printf("SpoolEase parsed: M=%s SC=%s color=%s w=%d/%d\n",
                           seType, info.materialType, info.colorHex,
                           info.remainingGrams, info.totalGrams);
-            snprintf(info.detailedType, sizeof(info.detailedType), "%s", seType);
+            snprintf(info.detailedType, sizeof(info.detailedType), "%s", seType[0] ? seType : tagLabel);
+            } else {
+              strcpy(info.materialType, tagLabel);
+              snprintf(info.detailedType, sizeof(info.detailedType), "%s", tagLabel);
+            }
             info.tagReadSuccess = true;
             return true;
           }
         }
       }
-      break;
+      // NDEF found but record type not recognized — still a valid tag
+      strcpy(info.materialType, "SpoolTag");
+      info.tagReadSuccess = true;
+      return true;
     }
 
     if (tlvType == 0x01 || tlvType == 0x02) {

@@ -58,6 +58,7 @@ public:
   static void clear(SpoolInfo &info);
   static bool parse(uint8_t* data, uint16_t length, const char* uid, SpoolInfo &info);
   static bool parseRawNTAG(uint8_t* data, uint16_t length, const char* uid, SpoolInfo &info);
+  static bool parseTigerTag(uint8_t* data, uint16_t length, const char* uid, SpoolInfo &info);
   static void dumpHex(uint8_t* data, uint16_t length, char* out, uint16_t outLen);
 
 private:

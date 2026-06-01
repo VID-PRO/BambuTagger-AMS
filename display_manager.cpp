@@ -16,7 +16,7 @@ void DisplayManager::begin(const char* devName) {
 
 void DisplayManager::update(const SpoolInfo slots[NUM_SLOTS], bool wifiConnected,
                             bool mqttConnected, BambuPrinter* printer,
-                            uint8_t amsUnit) {
+                            uint8_t amsUnit, float temp, float humidity) {
   if (!display) return;
   unsigned long now = millis();
   if (now - lastUpdate < 500) return;
@@ -29,7 +29,7 @@ void DisplayManager::update(const SpoolInfo slots[NUM_SLOTS], bool wifiConnected
   } else {
     drawSlotGrid(slots);
   }
-  drawFooter(mqttConnected, printer ? printer->isPrinterOnline() : false);
+  drawFooter(mqttConnected, printer ? printer->isPrinterOnline() : false, temp, humidity);
   display->display();
 }
 
@@ -49,7 +49,7 @@ void DisplayManager::drawSlotGrid(const SpoolInfo slots[NUM_SLOTS]) {
   display->setTextColor(SSD1306_WHITE);
 
   for (uint8_t i = 0; i < NUM_SLOTS; i++) {
-    uint8_t y = 10 + (i * 11);
+    uint8_t y = 9 + (i * 10);
 
     display->setCursor(0, y);
     display->printf("%d:", i + 1);
@@ -86,7 +86,7 @@ void DisplayManager::drawPrinterSlots(BambuPrinter* printer, uint8_t amsUnit) {
   display->setTextColor(SSD1306_WHITE);
 
   for (uint8_t i = 0; i < NUM_SLOTS; i++) {
-    uint8_t y = 10 + (i * 11);
+    uint8_t y = 9 + (i * 10);
 
     display->setCursor(0, y);
     display->printf("%d:", i + 1);
@@ -101,9 +101,12 @@ void DisplayManager::drawPrinterSlots(BambuPrinter* printer, uint8_t amsUnit) {
 
       const char* col = printer->getAmsTrayColor(amsUnit, i);
       if (col && col[0]) {
-        display->setCursor(78, y);
+        // Show first 6 chars to fit screen (skip alpha)
+        char col6[7];
+        strncpy(col6, col, 6); col6[6] = '\0';
+        display->setCursor(72, y);
         display->print("#");
-        display->print(col);
+        display->print(col6);
       }
     } else {
       display->setCursor(12, y);
@@ -112,10 +115,14 @@ void DisplayManager::drawPrinterSlots(BambuPrinter* printer, uint8_t amsUnit) {
   }
 }
 
-void DisplayManager::drawFooter(bool mqttConnected, bool printerOnline) {
+void DisplayManager::drawFooter(bool mqttConnected, bool printerOnline, float temp, float humidity) {
   display->drawFastHLine(0, 55, SCREEN_WIDTH, SSD1306_WHITE);
   display->setCursor(0, 57);
-  display->print(mqttConnected ? "MQTT:OK" : "MQTT:--");
+  if (temp > -99) {
+    display->printf("%.0fC %.0f%%", temp, humidity);
+  } else {
+    display->print(mqttConnected ? "MQTT:OK" : "MQTT:--");
+  }
   const char* ptrText = printerOnline ? "PTR:OK" : "PTR:--";
   int16_t x = SCREEN_WIDTH - (strlen(ptrText) * 6);
   display->setCursor(x, 57);
