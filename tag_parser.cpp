@@ -1,4 +1,5 @@
 #include "tag_parser.h"
+#include <ArduinoJson.h>
 
 void TagParser::clear(SpoolInfo &info) {
   info.present = false;
@@ -81,7 +82,8 @@ bool TagParser::parseTigerTag(uint8_t* data, uint16_t length, const char* uid, S
     case 43518: matName = "TPU"; break;
     case 48047: matName = "TPU HS"; break;
     case 12844: matName = "ASA"; break;
-    case 12878: matName = "CoPE"; break;
+    case 49804: matName = "ASA-AF"; break;
+    case 27676: matName = "ASA-CF"; break;
     case 30458: matName = "PC"; break;
     case 59328: matName = "PA"; break;
     case 39944: matName = "PA-CF"; break;
@@ -201,126 +203,91 @@ bool TagParser::parseBambuTLV(uint8_t* data, uint16_t length, SpoolInfo &info) {
 
 bool TagParser::parseRawNTAG(uint8_t* data, uint16_t length, const char* uid, SpoolInfo &info) {
   uint16_t pos = 0;
-
   while (pos + 2 <= length) {
-    uint8_t tlvType = data[pos];
-    pos++;
-
+    uint8_t tlvType = data[pos]; pos++;
     if (tlvType == 0x00 || tlvType == 0xFE) continue;
     if (tlvType == 0x03) {
       if (pos >= length) break;
-      uint8_t ndefLen = data[pos];
-      pos++;
-      int ndefEnd = pos + ndefLen;  // absolute end of NDEF message
-
+      uint8_t ndefLen = data[pos]; pos++;
+      int ndefEnd = pos + ndefLen;
       if (ndefEnd > length) break;
-
       if (pos + 2 <= length) {
         uint8_t ndefFlags = data[pos];
         uint8_t typeLen = data[pos + 1];
         uint8_t payloadLen = data[pos + 2];
         pos += 3;
 
-        if (typeLen == 2 && pos + typeLen <= length &&
-            data[pos] == 'T' && data[pos + 1] == 'a') {
+        // Text record (TNF=WellKnown, type="T")
+        if (typeLen == 2 && pos + typeLen <= length && data[pos] == 'T' && data[pos + 1] == 'a') {
           pos += typeLen + 1;
           if (payloadLen > 0 && pos + payloadLen <= length) {
-            uint8_t copyLen = payloadLen < (sizeof(info.materialType) - 1) ? payloadLen : (sizeof(info.materialType) - 1);
-            memcpy(info.materialType, &data[pos], copyLen);
-            info.materialType[copyLen] = '\0';
+            int cl = payloadLen < (int)(sizeof(info.materialType) - 1) ? payloadLen : (int)(sizeof(info.materialType) - 1);
+            memcpy(info.materialType, &data[pos], cl); info.materialType[cl] = '\0';
+            // Try JSON parsing (OpenSpool)
+            StaticJsonDocument<256> jd;
+            if (deserializeJson(jd, info.materialType) == DeserializationError::Ok && jd.containsKey("protocol")) {
+              const char* proto = jd["protocol"] | "";
+              const char* jtype = jd["type"] | "";
+              if (jtype[0]) strncpy(info.materialType, jtype, sizeof(info.materialType) - 1);
+              info.totalGrams = info.remainingGrams = jd["weight"] | 0;
+              info.nozzleTempMin = jd["min_temp"] | 0;
+              info.nozzleTempMax = jd["max_temp"] | 0;
+              const char* ch = jd["color_hex"] | "";
+              if (ch[0]) snprintf(info.colorHex, sizeof(info.colorHex), "%sFF", ch);
+              const char* br = jd["brand"] | "";
+              if (br[0]) strncpy(info.manufacturer, br, sizeof(info.manufacturer) - 1);
+              snprintf(info.detailedType, sizeof(info.detailedType), "%s",
+                       strcmp(proto, "openspool") == 0 ? "OpenSpool" : proto);
+            }
             info.tagReadSuccess = true;
             return true;
           }
         }
-        if (typeLen == 1 && pos + typeLen <= length &&
-            data[pos] == 'U') {
+
+        // URI record (type="U")
+        if (typeLen == 1 && pos + typeLen <= length && data[pos] == 'U') {
           pos += typeLen;
-            if (payloadLen >= 1) {
-            uint8_t uriCode = data[pos];
-            pos++;
-            int uriLen = payloadLen - 1;
-            if (uriLen < 0) uriLen = 0;
-            int remain = length - pos;
-            // Serial.printf("NDEF URI raw: ...\n");
-            if (uriLen > remain) uriLen = remain;
-            static const char* PREFIXES[] = {"","http://www.","https://www.","http://","https://"};
-            const char* prefix = (uriCode < 5) ? PREFIXES[uriCode] : "";
+          if (payloadLen >= 1) {
+            uint8_t uriCode = data[pos]; pos++;
+            int uriLen = payloadLen - 1; if (uriLen < 0) uriLen = 0;
+            int remain = length - pos; if (uriLen > remain) uriLen = remain;
+            static const char* PREF[] = {"","http://www.","https://www.","http://","https://"};
+            const char* prefix = (uriCode < 5) ? PREF[uriCode] : "";
             strcpy(info.materialType, "SpoolEase");
-            int preLen = strlen(prefix);
-            if (preLen > 0 && preLen < (int)(sizeof(info.detailedType) - 1))
-              memcpy(info.detailedType, prefix, preLen);
-            int outPos = preLen;
-            // Copy URI bytes, clamped to NDEF message boundary
-            for (int i = 0; i < uriLen && pos + i < ndefEnd && outPos < (int)(sizeof(info.detailedType) - 1); i++) {
+            int outPos = strlen(prefix);
+            if (outPos < (int)(sizeof(info.detailedType) - 1)) memcpy(info.detailedType, prefix, outPos);
+            for (int i = 0; i < uriLen && pos + i < ndefEnd && outPos < (int)(sizeof(info.detailedType) - 1); i++)
               info.detailedType[outPos++] = data[pos + i];
-            }
             info.detailedType[outPos] = '\0';
 
-            // Detect tag type from URL domain
             const char* tagLabel = "SpoolTag";
-            bool isSpoolEase = (strstr(info.detailedType, "tag.spoolease.io") != nullptr);
-            if (isSpoolEase) tagLabel = "SpoolEase";
+            bool isSE = (strstr(info.detailedType, "tag.spoolease.io") || strstr(info.detailedType, "openspooltag"));
+            if (isSE) tagLabel = "SpoolEase";
             else if (strstr(info.detailedType, "tigertag")) tagLabel = "TigerTag";
-            else if (strstr(info.detailedType, "openspooltag")) tagLabel = "OpenSpoolTag";
 
-            // Only parse URL params for SpoolEase format
-            if (isSpoolEase) {
-            // Parse SpoolEase URL parameters: M=type CC=color SC=material etc.
-            char seType[16] = "";
-            char seMat[16] = "";
-            int seWE = 0, seWF = 0;
-            Serial.printf("SpoolEase URL: %s\n", info.detailedType);
-            for (const char* p = info.detailedType; *p; p++) {
-              if (*p == '&' || *p == '?' || p == info.detailedType) {
-                if (p != info.detailedType) p++; // skip & or ?
-                if (strncmp(p, "M=", 2) == 0) { p += 2;
-                  int n = 0; while (p[n] && p[n] != '&') n++;
-                  if (n > 0 && n < (int)sizeof(seType)) { memcpy(seType, p, n); seType[n] = '\0'; }
-                  p += n - 1;
-                } else if (strncmp(p, "CC=", 3) == 0) { p += 3;
-                  int n = 0; while (p[n] && p[n] != '&') n++;
-                  if (n > 0 && n <= (int)(sizeof(info.colorHex) - 1))
-                    { memcpy(info.colorHex, p, n); info.colorHex[n] = '\0'; }
-                  p += n - 1;
-                } else if (strncmp(p, "SC=", 3) == 0) { p += 3;
-                  int n = 0; while (p[n] && p[n] != '&') n++;
-                  if (n > 0 && n < (int)(sizeof(info.materialType) - 1))
-                    { memcpy(info.materialType, p, n); info.materialType[n] = '\0'; }
-                  p += n - 1;
-                } else if (strncmp(p, "B=", 2) == 0) { p += 2;
-                  int n = 0; while (p[n] && p[n] != '&') n++;
-                  if (n > 0 && n < (int)(sizeof(info.manufacturer) - 1))
-                    { memcpy(info.manufacturer, p, n); info.manufacturer[n] = '\0'; }
-                  p += n - 1;
-                } else if (strncmp(p, "WE=", 3) == 0) { p += 3;
-                  seWE = atoi(p);
-                  while (*p && *p != '&') p++; p--;
-                } else if (strncmp(p, "WL=", 3) == 0) { p += 3;
-                  info.remainingGrams = atoi(p);
-                  while (*p && *p != '&') p++; p--;
-                } else if (strncmp(p, "WF=", 3) == 0) { p += 3;
-                  seWF = atoi(p);
-                  while (*p && *p != '&') p++; p--;
-                } else if (strncmp(p, "NN=", 3) == 0) { p += 3;
-                  info.nozzleTempMin = atoi(p);
-                  while (*p && *p != '&') p++;
-                  p--;
-                } else if (strncmp(p, "NX=", 3) == 0) { p += 3;
-                  info.nozzleTempMax = atoi(p);
-                  while (*p && *p != '&') p++;
-                  p--;
+            if (isSE) {
+              char seType[16] = ""; int seWE = 0, seWF = 0;
+              for (const char* p = info.detailedType; *p; p++) {
+                if (*p == '&' || *p == '?' || p == info.detailedType) {
+                  if (p != info.detailedType) p++;
+                  if (strncmp(p, "M=", 2) == 0) { p += 2; int n = 0; while (p[n] && p[n] != '&') n++;
+                    if (n > 0 && n < (int)sizeof(seType)) { memcpy(seType, p, n); seType[n] = '\0'; } p += n - 1; }
+                  else if (strncmp(p, "CC=", 3) == 0) { p += 3; int n = 0; while (p[n] && p[n] != '&') n++;
+                    if (n > 0 && n <= (int)(sizeof(info.colorHex) - 1)) { memcpy(info.colorHex, p, n); info.colorHex[n] = '\0'; } p += n - 1; }
+                  else if (strncmp(p, "SC=", 3) == 0) { p += 3; int n = 0; while (p[n] && p[n] != '&') n++;
+                    if (n > 0 && n < (int)(sizeof(info.materialType) - 1)) { memcpy(info.materialType, p, n); info.materialType[n] = '\0'; } p += n - 1; }
+                  else if (strncmp(p, "B=", 2) == 0) { p += 2; int n = 0; while (p[n] && p[n] != '&') n++;
+                    if (n > 0 && n < (int)(sizeof(info.manufacturer) - 1)) { memcpy(info.manufacturer, p, n); info.manufacturer[n] = '\0'; } p += n - 1; }
+                  else if (strncmp(p, "WE=", 3) == 0) { p += 3; seWE = atoi(p); while (*p && *p != '&') p++; p--; }
+                  else if (strncmp(p, "WL=", 3) == 0) { p += 3; info.remainingGrams = atoi(p); while (*p && *p != '&') p++; p--; }
+                  else if (strncmp(p, "WF=", 3) == 0) { p += 3; seWF = atoi(p); while (*p && *p != '&') p++; p--; }
+                  else if (strncmp(p, "NN=", 3) == 0) { p += 3; info.nozzleTempMin = atoi(p); while (*p && *p != '&') p++; p--; }
+                  else if (strncmp(p, "NX=", 3) == 0) { p += 3; info.nozzleTempMax = atoi(p); while (*p && *p != '&') p++; p--; }
                 }
               }
-            }
-            info.totalGrams = seWF - seWE;
-            if (info.totalGrams < 0) info.totalGrams = info.remainingGrams;
-            Serial.printf("SpoolEase parsed: M=%s SC=%s color=%s w=%d/%d\n",
-                          seType, info.materialType, info.colorHex,
-                          info.remainingGrams, info.totalGrams);
-            snprintf(info.detailedType, sizeof(info.detailedType), "%s", seType[0] ? seType : tagLabel);
-            // Show SpoolEase as tag type, M= as material
-            strncpy(info.detailedType, "SpoolEase", sizeof(info.detailedType) - 1);
-            if (seType[0]) strncpy(info.materialType, seType, sizeof(info.materialType) - 1);
+              info.totalGrams = seWF - seWE; if (info.totalGrams < 0) info.totalGrams = info.remainingGrams;
+              strncpy(info.detailedType, "SpoolEase", sizeof(info.detailedType) - 1);
+              if (seType[0]) strncpy(info.materialType, seType, sizeof(info.materialType) - 1);
             } else {
               strcpy(info.materialType, tagLabel);
               snprintf(info.detailedType, sizeof(info.detailedType), "%s", tagLabel);
@@ -329,31 +296,55 @@ bool TagParser::parseRawNTAG(uint8_t* data, uint16_t length, const char* uid, Sp
             return true;
           }
         }
+
+        // Generic NDEF: try JSON on any payload
+        {
+          int ps = pos + typeLen;
+          if (payloadLen > 0 && ps + payloadLen <= length && data[ps] == '{') {
+            int cl = payloadLen < 255 ? payloadLen : 254; char tmp[256];
+            memcpy(tmp, &data[ps], cl); tmp[cl] = '\0';
+            StaticJsonDocument<256> jd;
+            if (deserializeJson(jd, tmp) == DeserializationError::Ok && jd.containsKey("protocol")) {
+              const char* proto = jd["protocol"] | "";
+              const char* jtype = jd["type"] | "";
+              if (jtype[0]) strncpy(info.materialType, jtype, sizeof(info.materialType) - 1);
+              info.totalGrams = info.remainingGrams = jd["weight"] | 0;
+              info.nozzleTempMin = jd["min_temp"] | 0;
+              info.nozzleTempMax = jd["max_temp"] | 0;
+              const char* ch = jd["color_hex"] | "";
+              if (ch[0]) snprintf(info.colorHex, sizeof(info.colorHex), "%sFF", ch);
+              const char* br = jd["brand"] | "";
+              if (br[0]) strncpy(info.manufacturer, br, sizeof(info.manufacturer) - 1);
+              snprintf(info.detailedType, sizeof(info.detailedType), "%s",
+                       strcmp(proto, "openspool") == 0 ? "OpenSpool" : proto);
+              info.tagReadSuccess = true;
+              return true;
+            }
+          }
+        }
       }
-      // NDEF found but record type not recognized — still a valid tag
-      strcpy(info.materialType, "SpoolTag");
+      // NDEF TLV found but no record matched — domain detection
+      {
+        char buf[64]; int n = length < 63 ? length : 63;
+        memcpy(buf, data, n); buf[n] = '\0';
+        if (strstr(buf, "openspool")) strcpy(info.materialType, "OpenSpool");
+        else if (strstr(buf, "tigertag")) strcpy(info.materialType, "TigerTag");
+        else if (strstr(buf, "tag.spoolease.io")) strcpy(info.materialType, "SpoolEase");
+        else strcpy(info.materialType, "SpoolTag");
+        snprintf(info.detailedType, sizeof(info.detailedType), "%s", info.materialType);
+      }
       info.tagReadSuccess = true;
       return true;
     }
-
-    if (tlvType == 0x01 || tlvType == 0x02) {
-      if (pos >= length) break;
-      pos += data[pos] + 1;
-    } else if (tlvType == 0xFD) {
-      break;
-    } else {
-      if (pos >= length) break;
-      pos += data[pos] + 1;
-      break;
-    }
+    if (tlvType == 0x01 || tlvType == 0x02) { if (pos >= length) break; pos += data[pos] + 1; }
+    else if (tlvType == 0xFD) break;
+    else { if (pos >= length) break; pos += data[pos] + 1; break; }
   }
-
   if (!info.tagReadSuccess) {
     strcpy(info.materialType, "Unknown format");
     uint8_t copyLen = length < 8 ? length : 8;
     bytesToHex(data, copyLen, info.colorHex);
   }
-
   return info.tagReadSuccess;
 }
 
@@ -374,9 +365,7 @@ void TagParser::dumpHex(uint8_t* data, uint16_t length, char* out, uint16_t outL
   uint16_t pos = 0;
   for (uint16_t i = 0; i < length && pos < outLen - 4; i++) {
     pos += snprintf(out + pos, outLen - pos, "%02X ", data[i]);
-    if ((i + 1) % 16 == 0 && pos < outLen - 2) {
-      out[pos++] = '\n';
-    }
+    if ((i + 1) % 16 == 0 && pos < outLen - 2) { out[pos++] = '\n'; }
   }
   out[pos] = '\0';
 }

@@ -193,7 +193,7 @@ for(var i=0;i<ps.length;i++){
 var p=ps[i];
 var t=tagBySlot[i];
 var hasSpool=p.hasSpool;
-var showColor=t&&t.colorHex?t.colorHex:(p.hasSpool&&p.color?p.color.substring(0,6):null);
+var showColor=t&&t.colorHex?t.colorHex.substring(0,6):(p.hasSpool&&p.color?p.color.substring(0,6):null);
 h+='<div class="slot">';
 h+='<div class="slot-title"><span class="led '+(p.hasSpool?'led-green':'led-yellow')+'"></span>Slot '+(i+1)+'</div>';
 h+='<div style="display:flex;align-items:center;gap:8px">';

@@ -14,12 +14,12 @@ Multi-spool NFC tag reader for Bambu Lab printers. Reads 4 Bambu Lab filament sp
 
 - **4x RC522** on shared SPI bus polling MIFARE Classic 1K + NTAG tags via `MFRC522-spi-i2c-uart-async`
 - **Multi-tag auto-detect** — MIFARE Classic 1K (Bambu Lab) or NTAG (SpoolEase), auto-routed to correct parser
-- **HKDF-SHA256 key derivation** — derives per-sector MIFARE keys from the tag UID using Bambu's KDF salt
-- **Live printer AMS sync** — reads tray data (material, color, type) from the printer over MQTT
-- **Bambu BMCU support** — sends `ams_filament_setting` with correct `tray_type`, `tray_color`, `nozzle_temp_min/max`
 - **NTAG / SpoolEase** — reads NDEF URI records, extracts spool data from `tag.spoolease.io` URLs
 - **TigerTag binary parser** — native TigerTag v2.1 protocol support (ID TigerTag magic detection, material, color, weight, temps)
 - **OpenSpoolTag detection** — domain-based auto-detection for community tag formats
+- **HKDF-SHA256 key derivation** — derives per-sector MIFARE keys from the tag UID using Bambu's KDF salt
+- **Live printer AMS sync** — reads tray data (material, color, type) from the printer over MQTT
+- **Bambu BMCU support** — sends `ams_filament_setting` with correct `tray_type`, `tray_color`, `nozzle_temp_min/max`
 - **Web interface** — 3-tab SPA: Status (merged slots + Sub type + color swatches), Printer Config, WiFi Config
 - **OLED display** — boot splash, live AMS tray data, OTA progress bar, BME280 temp/humidity, MQTT+PTR status
 - **4x WS2812 LEDs** — per-slot color from printer AMS tray data (live MQTT sync)

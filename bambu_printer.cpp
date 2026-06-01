@@ -87,6 +87,25 @@ void BambuPrinter::reconnect() {
   }
 }
 
+void BambuPrinter::sendBmeData(float temp, float humidity) {
+  if (!config.mqttEnabled || !mqttClient || !mqttClient->connected()) return;
+
+  char topic[128];
+  snprintf(topic, sizeof(topic), "%s/%s/request",
+           config.mqttTopicPrefix, config.printerSerial);
+
+  char payload[256];
+  snprintf(payload, sizeof(payload),
+           "{\"print\":{\"command\":\"ams_user_setting\","
+           "\"sequence_id\":\"%lu\","
+           "\"ams_id\":%d,"
+           "\"ams_user_temp\":%.1f,"
+           "\"ams_user_humidity\":%.0f}}",
+           millis(), config.amsUnit, temp, humidity);
+
+  mqttClient->publish(topic, payload);
+}
+
 void BambuPrinter::sendSpoolData(uint8_t slot, const SpoolInfo &info) {
   if (!config.mqttEnabled || !mqttClient || !mqttClient->connected()) return;
 

@@ -147,6 +147,12 @@ void loop() {
     bmeHumidity = bme.readHumidity();
   }
 
+  static unsigned long lastBmeSend = 0;
+  if (bmeOk && now - lastBmeSend > 60000) {
+    lastBmeSend = now;
+    bambuPrinter.sendBmeData(bmeTemp, bmeHumidity);
+  }
+
   if (now - lastLedUpdate > 200) {
     lastLedUpdate = now;
     updateLedStatus();

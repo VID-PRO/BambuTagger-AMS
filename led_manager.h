@@ -32,6 +32,10 @@ private:
   uint8_t customR[NUM_SLOTS];
   uint8_t customG[NUM_SLOTS];
   uint8_t customB[NUM_SLOTS];
+  uint8_t lastR[NUM_SLOTS];
+  uint8_t lastG[NUM_SLOTS];
+  uint8_t lastB[NUM_SLOTS];
+  LedMode lastMode[NUM_SLOTS];
   unsigned long lastUpdate;
   uint8_t brightness;
 };

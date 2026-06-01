@@ -13,6 +13,10 @@ void LedManager::begin() {
     customR[i] = 0;
     customG[i] = 0;
     customB[i] = 0;
+    lastR[i] = 0xFF;
+    lastG[i] = 0xFF;
+    lastB[i] = 0xFF;
+    lastMode[i] = (LedMode)0xFF;
   }
   lastUpdate = 0;
 }
@@ -46,38 +50,29 @@ void LedManager::update() {
   if (now - lastUpdate < 50) return;
   lastUpdate = now;
 
+  bool changed = false;
   for (uint8_t i = 0; i < NUM_SLOTS; i++) {
     uint8_t r = 0, g = 0, b = 0;
+    LedMode mode = currentMode[i];
 
-    switch (currentMode[i]) {
-      case LED_OFF:
-        break;
-      case LED_IDLE:
-        b = 10;
-        break;
-      case LED_READING:
-        r = 0; g = 0; b = 255;
-        break;
-      case LED_TAG_PRESENT:
-        r = 128; g = 128; b = 0;
-        break;
-      case LED_TAG_COLOR:
-        r = customR[i];
-        g = customG[i];
-        b = customB[i];
-        break;
-      case LED_ERROR:
-        r = 255; g = 0; b = 0;
-        break;
-      case LED_WIFI_DISCONNECTED:
-        r = 255; g = 64; b = 0;
-        break;
-      case LED_WIFI_CONNECTED:
-        r = 0; g = 0; b = 64;
-        break;
+    switch (mode) {
+      case LED_OFF: break;
+      case LED_IDLE: b = 10; break;
+      case LED_TAG_COLOR: r = customR[i]; g = customG[i]; b = customB[i]; break;
+      case LED_TAG_PRESENT: r = 128; g = 128; b = 0; break;
+      case LED_ERROR: r = 255; g = 0; b = 0; break;
+      case LED_WIFI_DISCONNECTED: r = 255; g = 64; b = 0; break;
+      default: break;
     }
 
+    if (r != lastR[i] || g != lastG[i] || b != lastB[i] || mode != lastMode[i]) {
+      changed = true;
+      lastR[i] = r; lastG[i] = g; lastB[i] = b; lastMode[i] = mode;
+    }
     strip->setPixelColor(i, strip->Color(r, g, b));
   }
-  strip->show();
+  if (changed) {
+    delay(1);
+    strip->show();
+  }
 }
