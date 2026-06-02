@@ -232,6 +232,10 @@ void WebInterface::handleConfigPost() {
     config->mqttEnabled = postDoc["mqttEnabled"] | false;
     changed = true;
   }
+  if (postDoc.containsKey("mqttUseTLS")) {
+    config->mqttUseTLS = postDoc["mqttUseTLS"] | false;
+    changed = true;
+  }
   if (postDoc.containsKey("mqttInterval")) {
     config->mqttUpdateIntervalMs = postDoc["mqttInterval"] | config->mqttUpdateIntervalMs;
     changed = true;

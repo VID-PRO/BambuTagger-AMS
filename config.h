@@ -83,7 +83,7 @@ inline SystemConfig getDefaultConfig() {
   cfg.amsUnit = 0;
   cfg.mqttEnabled = false;
   cfg.mqttUseTLS = false;
-  cfg.mqttUpdateIntervalMs = 5000;
+  cfg.mqttUpdateIntervalMs = 3000;
   strcpy(cfg.mqttTopicPrefix, "device");
   return cfg;
 }

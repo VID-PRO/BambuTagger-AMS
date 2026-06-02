@@ -136,7 +136,8 @@ border-top-color:#58a6ff;border-radius:50%;animation:spin .8s linear infinite}
 </div>
 <div class="row" style="margin-top:12px">
 <div class="col"><label>MQTT Enabled</label><label class="toggle"><input type="checkbox" id="mqttEnabled"><span class="slider"></span></label></div>
-<div class="col"><label>MQTT Update Interval (ms)</label><input type="number" id="mqttInterval" value="5000"></div>
+<div class="col"><label>MQTT TLS</label><label class="toggle"><input type="checkbox" id="mqttUseTLS"><span class="slider"></span></label></div>
+<div class="col"><label>MQTT Update Interval (ms)</label><input type="number" id="mqttInterval" value="3000"></div>
 </div>
 <div class="actions"><button class="btn btn-primary" onclick="savePrinter()">Save Printer Settings</button></div>
 </div>
@@ -339,6 +340,7 @@ printerAccessCode:document.getElementById('printerAccessCode').value,
 printerSerial:document.getElementById('printerSerial').value,
 amsUnit:parseInt(document.getElementById('amsUnit').value)||0,
 mqttEnabled:document.getElementById('mqttEnabled').checked,
+mqttUseTLS:document.getElementById('mqttUseTLS').checked,
 mqttInterval:parseInt(document.getElementById('mqttInterval').value)||5000};
 fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
 body:JSON.stringify(d)}).then(function(r){return r.json()})
@@ -354,7 +356,8 @@ document.getElementById('printerPort').value=c.printerPort||8883;
 document.getElementById('printerAccessCode').value=c.printerAccessCode||'';
 document.getElementById('printerSerial').value=c.printerSerial||'';
 document.getElementById('mqttEnabled').checked=c.mqttEnabled||false;
-document.getElementById('mqttInterval').value=c.mqttUpdateIntervalMs||5000;
+document.getElementById('mqttUseTLS').checked=c.mqttUseTLS||false;
+document.getElementById('mqttInterval').value=c.mqttUpdateIntervalMs||3000;
 document.getElementById('amsUnit').value=c.amsUnit||0})}
 
 loadConfig();
@@ -362,7 +365,7 @@ fetchStatus();
 setInterval(fetchStatus,3000);
 fetch('/api/version').then(function(r){return r.json()}).then(function(v){
 document.getElementById('fwVersion').textContent='v'+v.version})
-checkOta()
+setTimeout(function(){checkOta()},5000)
 </script>
 <div id="otaOverlay"><div class="spinner"></div><div class="msg">Installing update...</div><div class="sub" id="otaOverlaySub"></div><div class="bar"><div class="barFill" id="otaBar" style="width:0%"></div></div></div>
 <footer>&copy; 2026 by <a href="https://www.bambutagger.de" target="_blank" style="color:#484f58;text-decoration:none" onmouseover="this.style.color='#c9d1d9'" onmouseout="this.style.color='#484f58'">BambuTagger</a></footer>

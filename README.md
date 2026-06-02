@@ -14,9 +14,10 @@ Multi-spool NFC tag reader for Bambu Lab printers. Reads 4 Bambu Lab filament sp
 
 - **4x RC522** on shared SPI bus polling MIFARE Classic 1K + NTAG tags via `MFRC522-spi-i2c-uart-async`
 - **Multi-tag auto-detect** — MIFARE Classic 1K (Bambu Lab) or NTAG (SpoolEase), auto-routed to correct parser
-- **NTAG / SpoolEase** — reads NDEF URI records, extracts spool data from `tag.spoolease.io` URLs
+- **Nested NDEF recursion** — auto-parses NDEF-in-NDEF payloads (OpenTag3D format)
 - **TigerTag binary parser** — native TigerTag v2.1 protocol support (ID TigerTag magic detection, material, color, weight, temps)
-- **OpenSpoolTag detection** — domain-based auto-detection for community tag formats
+- **OpenTag3D binary parser** — MIME record type "application/opentag3d", fixed-offset binary format
+- **OpenSpool JSON parser** — NDEF text records with JSON payload, `protocol` key auto-detect
 - **HKDF-SHA256 key derivation** — derives per-sector MIFARE keys from the tag UID using Bambu's KDF salt
 - **Live printer AMS sync** — reads tray data (material, color, type) from the printer over MQTT
 - **Bambu BMCU support** — sends `ams_filament_setting` with correct `tray_type`, `tray_color`, `nozzle_temp_min/max`
@@ -183,6 +184,9 @@ Tag: `TigerTag - ASA-AF · F078B4FF · 1000g/1000g`
 ### OpenSpool (NTAG, NDEF JSON)
 Tag: `OpenSpool - ASA-AF · F078B4FF · 1000g/1000g`
 
+### OpenTag3D (NTAG, MIME binary)
+Tag: `OpenTag3D - ASA-AF · F078B4FF · 1000g/1000g`
+
 Bambu Lab uses **MIFARE Classic 1K** tags with fixed block offsets:
 
 | Block | Content |
@@ -286,8 +290,9 @@ Workflow at `GHActions/release.yml`:
 | Access Code | (empty) |
 | Printer Serial | (empty) |
 | AMS Unit | A (0) |
-| MQTT Enabled | No |
-| MQTT Update Interval | 5000 ms |
+| MQTT Enabled | Yes |
+| MQTT TLS | No |
+| MQTT Update Interval | 3000 ms |
 | RFID Poll Interval | 100 ms |
 | Firmware Version | 1.0.3 |
 

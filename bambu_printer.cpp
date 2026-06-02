@@ -47,7 +47,7 @@ void BambuPrinter::update() {
 
   if (!mqttClient->connected()) {
     unsigned long now = millis();
-    if (now - lastReconnectAttempt > 10000) {
+    if (now - lastReconnectAttempt > 30000) {
       lastReconnectAttempt = now;
       reconnect();
     }
@@ -60,7 +60,7 @@ void BambuPrinter::update() {
   state = PRINTER_CONNECTED;
 
   unsigned long now = millis();
-  if (now - lastStatusRequest > 30000) {
+  if (now - lastStatusRequest > 10000) {
     lastStatusRequest = now;
     requestPrinterStatus();
   }
@@ -81,7 +81,14 @@ void BambuPrinter::reconnect() {
              config.mqttTopicPrefix, config.printerSerial);
     mqttClient->subscribe(topic);
 
-    requestPrinterStatus();
+    // Only request get_version on connect (small response)
+    char reqTopic[128];
+    snprintf(reqTopic, sizeof(reqTopic), "%s/%s/request",
+             config.mqttTopicPrefix, config.printerSerial);
+    char payload2[128];
+    snprintf(payload2, sizeof(payload2),
+             "{\"info\":{\"sequence_id\":\"0\",\"command\":\"get_version\"}}");
+    mqttClient->publish(reqTopic, payload2);
   } else {
     state = PRINTER_ERROR;
   }
@@ -110,14 +117,14 @@ void BambuPrinter::sendSpoolData(uint8_t slot, const SpoolInfo &info) {
   if (!config.mqttEnabled || !mqttClient || !mqttClient->connected()) return;
 
   char ttype[32];
-  const char* src = info.detailedType[0] ? info.detailedType : info.materialType;
+  const char* src = info.materialType[0] ? info.materialType : info.detailedType;
   strncpy(ttype, src, sizeof(ttype) - 1);
   ttype[sizeof(ttype) - 1] = '\0';
   char* sp = strchr(ttype, ' ');
   if (sp) *sp = '\0';
 
-  // If no detailed type, derive from material prefix (e.g. "GFA00" → "PLA")
-  if (!info.detailedType[0]) {
+  // If materialType is a Bambu index (e.g. "GFA00"), derive type
+  if (info.materialType[0] == 'G' && info.materialType[1] == 'F') {
     if (strncmp(info.materialType, "GFA", 3) == 0 || strncmp(info.materialType, "GFB", 3) == 0 ||
         strncmp(info.materialType, "GFC", 3) == 0 || strncmp(info.materialType, "GFD", 3) == 0 ||
         strncmp(info.materialType, "GFE", 3) == 0) strcpy(ttype, "PLA");

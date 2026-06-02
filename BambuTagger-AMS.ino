@@ -90,6 +90,7 @@ void setup() {
   }
 
   webInterface.begin(cfg, &rfidManager, &bambuPrinter, handleReboot, performOTAUpdate);
+  webInterface.updateStatus(wifiConnected, localIP.c_str(), false, false);
   if (wifiConnected) {
     Serial.println(F("Web server started on port 80"));
     Serial.println(localIP);
@@ -105,13 +106,17 @@ void setup() {
 
 void loop() {
   rfidManager.loop();
-
   webInterface.handleClient();
+  yield();
   if (apMode) {
     dnsServer.processNextRequest();
   }
   if (wifiConnected) {
-    bambuPrinter.update();
+    static unsigned long lastMqttLoop = 0;
+    if (millis() - lastMqttLoop > 200) {
+      lastMqttLoop = millis();
+      bambuPrinter.update();
+    }
   }
 
   static unsigned long lastReconnectCheck = 0;
@@ -166,6 +171,8 @@ void loop() {
       rfidManager.getSpoolInfo(i, displaySlots[i]);
     }
     bool mqttOk = bambuPrinter.isConnected();
+    webInterface.updateStatus(wifiConnected, localIP.c_str(), mqttOk,
+                              (bambuPrinter.getState() == PRINTER_CONNECTED));
     displayManager.update(displaySlots, wifiConnected, mqttOk,
                           &bambuPrinter, cfg.amsUnit, bmeTemp, bmeHumidity);
   }
@@ -182,11 +189,11 @@ void loop() {
           SpoolInfo info;
           if (rfidManager.getSpoolInfo(i, info) && info.present && info.tagReadSuccess) {
             bambuPrinter.sendSpoolData(i, info);
+          }
+        }
+      }
+    }
   }
-}
-}
-}
-}
 }
 
 void connectWiFi() {
@@ -323,9 +330,9 @@ void performOTAUpdate() {
   filter["tag_name"] = true;
   JsonArray fa = filter.createNestedArray("assets");
   JsonObject fa0 = fa.createNestedObject();
-  fa0["name"]                 = true;
+  fa0["name"] = true;
   fa0["browser_download_url"] = true;
-  fa0["size"]                 = true;
+  fa0["size"] = true;
 
   DynamicJsonDocument doc(8192);
   DeserializationError err = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
@@ -361,8 +368,7 @@ void performOTAUpdate() {
   int binSize = 0;
   for (JsonObject asset : assets) {
     String name = asset["name"] | "";
-    if (name.endsWith(".bin") && name.indexOf("merged") < 0 &&
-        name.indexOf("bootloader") < 0 && name.indexOf("partition") < 0) {
+    if (name.endsWith(".bin") && name.indexOf("merged") < 0 && name.indexOf("bootloader") < 0 && name.indexOf("partition") < 0) {
       dlUrl = asset["browser_download_url"] | "";
       binSize = asset["size"] | 0;
       break;
@@ -388,7 +394,10 @@ void performOTAUpdate() {
     dl.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     dl.addHeader("User-Agent", String("BambuTagger-AMS/") + FIRMWARE_VERSION);
     int dlCode = dl.GET();
-    if (dlCode != 200) { dl.end(); continue; }
+    if (dlCode != 200) {
+      dl.end();
+      continue;
+    }
 
     int totalSize = (binSize > 0) ? binSize : dl.getSize();
     if (!Update.begin((totalSize > 0) ? (size_t)totalSize : UPDATE_SIZE_UNKNOWN)) {
@@ -408,7 +417,8 @@ void performOTAUpdate() {
       int avail = stream->available();
       if (!avail) {
         if (written > 0 && millis() - stallSince > 5000) break;
-        delay(2); continue;
+        delay(2);
+        continue;
       }
       stallSince = millis();
       int n = stream->readBytes(buf, min(avail, (int)sizeof(buf)));
