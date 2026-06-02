@@ -325,7 +325,9 @@ bool RfidManager::readNtagPages(uint8_t slot, SpoolInfo &info) {
   Serial.printf("Slot %d: NTAG read, bytesRead=%d\n", slot, bytesRead);
 
   bool result = TagParser::parse(dataBuffer, bytesRead, info.uid, info);
-  if (!result) {
+  if (result) {
+    info.present = true;
+  } else {
     info.present = true;
     info.tagReadSuccess = false;
   }
