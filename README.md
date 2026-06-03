@@ -34,13 +34,14 @@ Multi-spool NFC tag reader for Bambu Lab printers. Reads 4 tags via RC522, syncs
 
 ### Bill of Materials
 
-| Component | Notes |
-|-----------|-------|
-| **ESP32** Dev Module | Standard ESP32-WROOM |
-| **4× RC522** | SPI, shared bus |
-| **4× WS2812** | Daisy-chained, single data pin |
-| **128×64 OLED** | SSD1306, I2C |
-| **BME280** | Temp/humidity, I2C (shared bus with OLED) |
+| Component | Notes | Buy |
+|-----------|-------|-----|
+| **ESP32** Dev Module | Standard ESP32-WROOM | https://de.aliexpress.com/item/1005006589341221.html |
+| **4× RC522** | SPI, shared bus | https://de.aliexpress.com/item/1005006233005745.html |
+| **4× WS2812** | Daisy-chained, single data pin | https://de.aliexpress.com/item/32560280169.html |
+| **128×64 OLED** | SSD1306, I2C | https://de.aliexpress.com/item/1005007551771400.html |
+| **BME280** | Temp/humidity, I2C (shared bus with OLED) | https://de.aliexpress.com/item/1005006824236173.html |
+| **PCB** | DIY PCB from JLPCB | https://oshwlab.com/bambutagger/project_hdkkdlsn |
 
 ### Pin Assignments
 
